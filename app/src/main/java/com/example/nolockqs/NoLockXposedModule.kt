@@ -3,190 +3,145 @@ package com.example.nolockqs
 import android.app.KeyguardManager
 import android.content.Context
 import android.util.Log
+import android.view.MotionEvent
+import android.view.View
+import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
-import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
-import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
-import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
+import io.github.libxposed.api.XposedModuleInterface.*
 
 /**
  * NoLockQS Xposed Module
- * Final Revision: Perfected Lock Detection via System Context.
- * Optimized for Android 15, 16, and 17 (Pixel 7-11 Support).
- * Status bar remains visible, Quick Settings mathematically locked.
+ * Optimized for Vector 2.2 (API 102) on Android 15-17 Pixels (7 through 11).
+ * Features: Dynamic QS dead-zone, Power Menu Block, and SystemProperties toggle.
  */
 class NoLockXposedModule : XposedModule() {
 
     private companion object {
         const val TAG = "NoLockQS"
+        const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+        const val ROOT_WINDOW_CLASS = "com.android.systemui.shade.NotificationShadeWindowView"
+        const val TOGGLE_PROPERTY = "persist.sys.nolockqs.enabled"
+
+        // Classes responsible for the Power Menu across different Android versions
+        val GLOBAL_ACTIONS_CLASSES = listOf(
+            "com.android.systemui.globalactions.GlobalActionsDialogLite",
+            "com.android.systemui.globalactions.GlobalActionsDialog"
+        )
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
         super.onPackageReady(param)
 
-        val packageName = param.packageName
-        val classLoader = param.classLoader
-
-        if (packageName == "com.android.systemui" || packageName == "com.google.android.systemui") {
-            Log.d(TAG, "SystemUI ($packageName) detected. Applying surgical Android 15-17 hooks.")
-            applyDeepHooks(classLoader)
-        } else if (packageName == "com.example.nolockqs") {
-            applySelfHooks(classLoader)
+        if (param.packageName == SYSTEM_UI_PACKAGE) {
+            Log.d(TAG, "SystemUI detected. Injecting universal security hooks.")
+            applyRootWindowHook(param.classLoader)
+            applyPowerMenuHook(param.classLoader)
         }
-    }
-
-    private fun applyDeepHooks(classLoader: ClassLoader) {
-        var hookCount = 0
-
-        // 1. Core Shade & QS Controllers (Android 14/15/16)
-        val controllersToHook = listOf(
-            "com.android.systemui.shade.NotificationPanelViewController",
-            "com.android.systemui.statusbar.phone.NotificationPanelViewController",
-            "com.android.systemui.shade.QuickSettingsController",
-            "com.android.systemui.shade.QuickSettingsControllerImpl",
-            "com.android.systemui.qs.QSPanelController"
-        )
-        
-        controllersToHook.forEach { className ->
-            try {
-                val clazz = classLoader.loadClass(className)
-                
-                // Block boolean getters that allow QS expansion
-                clazz.declaredMethods.filter { 
-                    it.name == "isQsExpansionEnabled" || 
-                    it.name == "isExpansionEnabled" || 
-                    it.name == "isQsTouchEnabled" 
-                }.forEach { method ->
-                    if (method.returnType == Boolean::class.javaPrimitiveType && method.parameterCount == 0) {
-                        hook(method).intercept { chain ->
-                            if (isDeviceSecurelyLocked()) {
-                                return@intercept false
-                            }
-                            chain.proceed()
-                        }
-                        hookCount++
-                    }
-                }
-
-                // Force QS height/fraction to 0.0f
-                clazz.declaredMethods.filter { 
-                    it.name == "setQsExpansion" || 
-                    it.name == "setExpansionHeight" 
-                }.forEach { method ->
-                    if (method.parameterCount >= 1 && method.parameterTypes[0] == Float::class.javaPrimitiveType) {
-                        hook(method).intercept { chain ->
-                            if (isDeviceSecurelyLocked()) {
-                                chain.args[0] = 0.0f
-                            }
-                            chain.proceed()
-                        }
-                        hookCount++
-                    }
-                }
-
-                // Block handleQsTouch completely
-                clazz.declaredMethods.filter { it.name == "handleQsTouch" }.forEach { method ->
-                    hook(method).intercept { chain ->
-                        if (isDeviceSecurelyLocked()) {
-                            return@intercept false
-                        }
-                        chain.proceed()
-                    }
-                    hookCount++
-                }
-
-                // Force policy setters to false
-                clazz.declaredMethods.filter { it.name == "setQsExpansionEnabledPolicy" || it.name == "setExpanded" }.forEach { method ->
-                    if (method.parameterCount >= 1 && method.parameterTypes[0] == Boolean::class.javaPrimitiveType) {
-                        hook(method).intercept { chain ->
-                            if (isDeviceSecurelyLocked()) {
-                                chain.args[0] = false
-                            }
-                            chain.proceed()
-                        }
-                        hookCount++
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-
-        // 2. Interactors - Domain Logic (Android 15+)
-        val interactors = listOf(
-            "com.android.systemui.shade.domain.interactor.ShadeInteractor",
-            "com.android.systemui.shade.domain.interactor.ShadeInteractorLegacyImpl",
-            "com.android.systemui.qs.domain.interactor.QuickSettingsInteractor"
-        )
-        
-        interactors.forEach { className ->
-            try {
-                val clazz = classLoader.loadClass(className)
-                clazz.declaredMethods.filter { 
-                    it.returnType == Boolean::class.javaPrimitiveType && 
-                    (it.name.contains("isQuickSettings") || it.name == "isQsExpansionEnabled")
-                }.forEach { method ->
-                    hook(method).intercept { chain ->
-                        if (isDeviceSecurelyLocked()) {
-                            return@intercept false
-                        }
-                        chain.proceed()
-                    }
-                    hookCount++
-                }
-            } catch (_: Exception) {}
-        }
-
-        // 3. Scene Framework (Flexiglass) Android 16/17
-        try {
-            val sceneInteractorClass = classLoader.loadClass("com.android.systemui.scene.domain.interactor.SceneInteractor")
-            sceneInteractorClass.declaredMethods.filter { 
-                it.name == "changeScene" || it.name == "changeScene\$default" || it.name == "requestSceneChange"
-            }.forEach { method ->
-                hook(method).intercept { chain ->
-                    if (chain.args.isNotEmpty() && chain.args[0] != null) {
-                        val targetScene = chain.args[0].toString().lowercase()
-                        if (targetScene.contains("quicksettings") && isDeviceSecurelyLocked()) {
-                            Log.d(TAG, "Flexiglass: Blocked transition to QuickSettings.")
-                            return@intercept null
-                        }
-                    }
-                    chain.proceed()
-                }
-                hookCount++
-            }
-        } catch (_: Exception) {}
-
-        Log.d(TAG, "Applied $hookCount bulletproof hooks to SystemUI.")
-    }
-
-    private fun applySelfHooks(classLoader: ClassLoader) {
-        try {
-            val activityClass = classLoader.loadClass("com.example.nolockqs.MainActivity")
-            val method = activityClass.getDeclaredMethod("isModuleActive")
-            hook(method).intercept { true }
-        } catch (_: Exception) {}
     }
 
     /**
-     * O(1) Absolute Lock Detection.
-     * Uses global ActivityThread to fetch Context instead of fragile SystemUI object reflection.
+     * FEATURE 1: Dynamic Quick Settings Dead-Zone
      */
-    private fun isDeviceSecurelyLocked(): Boolean {
+    private fun applyRootWindowHook(classLoader: ClassLoader) {
         try {
-            val context = getSystemContext() ?: return false
-            val km = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-            return km?.isKeyguardLocked == true
-        } catch (_: Exception) {
-            Log.e(TAG, "Failed to determine lock state")
-        }
-        return false
+            val windowViewClass = classLoader.loadClass(ROOT_WINDOW_CLASS)
+            val dispatchMethod = windowViewClass.declaredMethods.find {
+                it.name == "dispatchTouchEvent" && it.parameterCount == 1
+            }
+
+            dispatchMethod?.let { method ->
+                hook(method).intercept(object : XposedInterface.Hooker {
+                    override fun intercept(chain: XposedInterface.Chain): Any? {
+                        if (!isModuleEnabled()) return chain.proceed()
+
+                        val event = chain.args[0] as? MotionEvent
+                        val view = chain.thisObject as? View
+
+                        if (event != null && view != null && event.action == MotionEvent.ACTION_DOWN) {
+                            val dynamicDeadZone = getStatusBarHeight(view.context)
+
+                            // Block touches originating in the status bar area
+                            if (event.rawY <= dynamicDeadZone && isDeviceSecurelyLocked(view.context)) {
+                                Log.w(TAG, "Blocked QS dropdown swipe.")
+                                return true // Consume and destroy the touch event
+                            }
+                        }
+                        return chain.proceed()
+                    }
+                })
+            }
+        } catch (ignored: Exception) {}
     }
 
-    private fun getSystemContext(): Context? {
+    /**
+     * FEATURE 2: Power Menu (Global Actions) Interceptor
+     */
+    private fun applyPowerMenuHook(classLoader: ClassLoader) {
+        GLOBAL_ACTIONS_CLASSES.forEach { className ->
+            try {
+                val globalActionsClass = classLoader.loadClass(className)
+
+                // Target any method responsible for rendering the power menu
+                val showMethods = globalActionsClass.declaredMethods.filter {
+                    it.name.startsWith("show") || it.name == "handleShow"
+                }
+
+                showMethods.forEach { method ->
+                    hook(method).intercept(object : XposedInterface.Hooker {
+                        override fun intercept(chain: XposedInterface.Chain): Any? {
+                            if (isModuleEnabled() && isDeviceSecurelyLocked()) {
+                                Log.w(TAG, "Blocked Power Menu on lockscreen.")
+                                return null // Cancel the dialog from opening
+                            }
+                            return chain.proceed()
+                        }
+                    })
+                }
+            } catch (ignored: Exception) {}
+        }
+    }
+
+    /**
+     * UTILITY: Dynamically fetches the status bar height.
+     */
+    private fun getStatusBarHeight(context: Context): Float {
         return try {
-            val activityThreadClass = Class.forName("android.app.ActivityThread")
-            val currentActivityThread = activityThreadClass.getMethod("currentActivityThread").invoke(null)
-            currentActivityThread?.javaClass?.getMethod("getApplication")?.invoke(currentActivityThread) as? Context
+            val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+            if (resourceId > 0) {
+                context.resources.getDimensionPixelSize(resourceId).toFloat()
+            } else 150f
         } catch (e: Exception) {
-            null
+            150f
+        }
+    }
+
+    /**
+     * UTILITY: Master kill-switch via System Properties.
+     */
+    private fun isModuleEnabled(): Boolean {
+        return try {
+            val sysPropClass = Class.forName("android.os.SystemProperties")
+            val getBooleanMethod = sysPropClass.getMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
+            getBooleanMethod.invoke(null, TOGGLE_PROPERTY, true) as Boolean
+        } catch (e: Exception) {
+            true
+        }
+    }
+
+    /**
+     * UTILITY: Bulletproof lock check. Defaults to ActivityThread if no View Context is available.
+     */
+    private fun isDeviceSecurelyLocked(context: Context? = null): Boolean {
+        return try {
+            var ctx = context
+            if (ctx == null) {
+                val activityThreadClass = Class.forName("android.app.ActivityThread")
+                ctx = activityThreadClass.getMethod("currentApplication").invoke(null) as? Context
+            }
+            val km = ctx?.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+            km?.isKeyguardLocked == true
+        } catch (e: Exception) {
+            false
         }
     }
 
