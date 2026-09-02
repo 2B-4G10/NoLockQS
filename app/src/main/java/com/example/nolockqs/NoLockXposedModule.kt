@@ -110,7 +110,7 @@ class NoLockXposedModule : XposedModule() {
             if (resourceId > 0) {
                 context.resources.getDimensionPixelSize(resourceId).toFloat()
             } else 150f
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             150f
         }
     }
@@ -123,7 +123,7 @@ class NoLockXposedModule : XposedModule() {
             val sysPropClass = Class.forName("android.os.SystemProperties")
             val getBooleanMethod = sysPropClass.getMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
             getBooleanMethod.invoke(null, TOGGLE_PROPERTY, true) as Boolean
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             true
         }
     }
@@ -133,14 +133,13 @@ class NoLockXposedModule : XposedModule() {
      */
     private fun isDeviceSecurelyLocked(context: Context? = null): Boolean {
         return try {
-            var ctx = context
-            if (ctx == null) {
+            val ctx = context ?: run {
                 val activityThreadClass = Class.forName("android.app.ActivityThread")
-                ctx = activityThreadClass.getMethod("currentApplication").invoke(null) as? Context
+                activityThreadClass.getMethod("currentApplication").invoke(null) as? Context
             }
             val km = ctx?.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
             km?.isKeyguardLocked == true
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
             false
         }
     }
