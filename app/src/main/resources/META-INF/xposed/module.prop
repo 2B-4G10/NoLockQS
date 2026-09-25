@@ -1,7 +1,7 @@
 name=NoLockQS
 version=1.4
 versionCode=3
-author=Developer
+author=Faisal AlDossary
 description=Blocks Quick Settings and the power menu on the lock screen
 minApiVersion=101
 targetApiVersion=102
