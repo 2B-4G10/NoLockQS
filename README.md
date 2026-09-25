@@ -5,7 +5,7 @@
 ## Optimized for Rooted Android 15+, Pixel 7-11 devices Using LSPosed API 101/102 (Vector 2.2).
 
 ## Requirements: 
-- Rooted Pixel 7-11 running on Android 15+ 🤖
+- Rooted Pixel 7-11 running on Android 15-17 🤖
 - Vector 2.2 (Minimum) 🚀
 
 ## Instructions:
