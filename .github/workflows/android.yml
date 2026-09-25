@@ -1,5 +1,8 @@
 name: Android CI
 
+# This repository only allows actions owned by 2B-4G10, so every step is a plain shell step
+# using the tools preinstalled on GitHub's Ubuntu runners: git, the JDKs, the Android SDK and gh.
+
 on:
   push:
     branches: [ main ]
@@ -15,105 +18,63 @@ concurrency:
   # Superseded PR builds are cancelled; main builds always finish because they may publish a release.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  MODULE_PROP: app/src/main/resources/META-INF/xposed/module.prop
-
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.versions.outputs.version }}
-      java: ${{ steps.versions.outputs.java }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      # module.prop holds the app version; the Gradle daemon JDK is pinned in
-      # gradle/gradle-daemon-jvm.properties. Both are read here instead of being repeated.
-      - name: Read versions
-        id: versions
-        run: |
-          echo "version=$(sed -n 's/^version=//p' "$MODULE_PROP" | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
-          echo "java=$(sed -n 's/^toolchainVersion=//p' gradle/gradle-daemon-jvm.properties | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
-
-      - name: Set up JDK ${{ steps.versions.outputs.java }}
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: ${{ steps.versions.outputs.java }}
-
-      # Accepts the SDK licenses so AGP can download the platform and build-tools it needs.
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          log-accepted-android-sdk-licenses: false
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Build debug and release APKs
-        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: NoLockQS-${{ steps.versions.outputs.version }}-debug
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-  release:
-    name: Release
-    needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    name: Build and release
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    concurrency:
-      group: release
-      cancel-in-progress: false
     env:
-      VERSION: ${{ needs.build.outputs.version }}
-      TAG: v${{ needs.build.outputs.version }}
+      MODULE_PROP: app/src/main/resources/META-INF/xposed/module.prop
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Check whether the version is already released
-        id: existing
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null \
-             || gh release list --limit 1000 --json tagName --jq '.[].tagName' | grep -Fxq "$TAG"; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::$TAG already exists. Bump version and versionCode in module.prop to publish a new release."
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
+          git init -q .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth=1 origin "$GITHUB_SHA"
+          git checkout -q --detach FETCH_HEAD
+
+      # module.prop holds the app version; the Gradle daemon JDK is pinned in
+      # gradle/gradle-daemon-jvm.properties. A new version on main is published as v<version>.
+      - name: Read version
+        id: version
+        run: |
+          version=$(sed -n 's/^version=//p' "$MODULE_PROP" | tr -d '[:space:]')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "TAG=v$version" >> "$GITHUB_ENV"
+          release=false
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            # Drafts have no tag yet, so releases are checked as well as tags.
+            releases=$(gh release list --limit 1000 --json tagName --jq '.[].tagName')
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" --silent 2>/dev/null \
+               || grep -Fxq "v$version" <<< "$releases"; then
+              echo "::notice::v$version already exists. Bump version and versionCode in module.prop to publish a new release."
+            else
+              release=true
+            fi
           fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK ${{ needs.build.outputs.java }}
-        if: steps.existing.outputs.found == 'false'
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: ${{ needs.build.outputs.java }}
-
-      - name: Set up Android SDK
-        if: steps.existing.outputs.found == 'false'
-        uses: android-actions/setup-android@v4
-        with:
-          log-accepted-android-sdk-licenses: false
-
-      - name: Set up Gradle
-        if: steps.existing.outputs.found == 'false'
-        uses: gradle/actions/setup-gradle@v6
+      - name: Set up JDK and Android SDK
+        run: |
+          java=$(sed -n 's/^toolchainVersion=//p' gradle/gradle-daemon-jvm.properties | tr -d '[:space:]')
+          jdk_var="JAVA_HOME_${java}_X64"
+          if [ -n "${!jdk_var:-}" ]; then
+            echo "JAVA_HOME=${!jdk_var}" >> "$GITHUB_ENV"
+          else
+            echo "::notice::JDK $java is not preinstalled on this runner; Gradle provisions it."
+          fi
+          # Accept any new SDK licenses so AGP can download the platform and build-tools it needs.
+          sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$sdkmanager" ]; then yes | "$sdkmanager" --licenses > /dev/null || true; fi
 
       - name: Load the signing key
         id: signing
-        if: steps.existing.outputs.found == 'false'
+        if: steps.version.outputs.release == 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.NOLOCKQS_KEYSTORE_BASE64 }}
         run: |
@@ -126,18 +87,18 @@ jobs:
             echo "::warning::No NOLOCKQS_KEYSTORE_BASE64 secret: $TAG is signed with a temporary key and saved as a draft."
           fi
 
-      - name: Build release APK
-        if: steps.existing.outputs.found == 'false'
+      - name: Build debug and release APKs
         env:
           NOLOCKQS_KEYSTORE_PASSWORD: ${{ secrets.NOLOCKQS_KEYSTORE_PASSWORD }}
           NOLOCKQS_KEY_ALIAS: ${{ secrets.NOLOCKQS_KEY_ALIAS }}
           NOLOCKQS_KEY_PASSWORD: ${{ secrets.NOLOCKQS_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --stacktrace
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
 
       # The release is named exactly like its tag, and the APK carries the same name.
-      - name: Publish ${{ env.TAG }}
-        if: steps.existing.outputs.found == 'false'
+      - name: Publish the release
+        if: steps.version.outputs.release == 'true'
         env:
+          VERSION: ${{ steps.version.outputs.version }}
           SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
           apk="NoLockQS-$TAG.apk"
@@ -153,7 +114,7 @@ jobs:
             if [ "$SIGNED" != "true" ]; then
               printf '\n> [!WARNING]\n> Signed with a temporary key: uninstall the previous version before installing this one.\n'
             fi
-          } > release-notes.md
-          flags=(--title "$TAG" --target "$GITHUB_SHA" --notes-file release-notes.md --generate-notes)
+          } > "$RUNNER_TEMP/release-notes.md"
+          flags=(--title "$TAG" --target "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes)
           if [ "$SIGNED" != "true" ]; then flags+=(--draft); fi
           gh release create "$TAG" "$apk" "${flags[@]}"
