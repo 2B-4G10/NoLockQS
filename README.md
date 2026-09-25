@@ -21,7 +21,7 @@ To pause the protection without uninstalling, run `su -c setprop persist.sys.nol
 - The version lives in `app/src/main/resources/META-INF/xposed/module.prop` (`version` and `versionCode`).
 - Every push to `main` is built by GitHub Actions. When `version` is new, the release `v<version>` is published with the APK attached.
 - Dependabot checks the Gradle dependencies weekly. Each update is merged into `main` by CI as soon as it builds; one that breaks the build stays open as a pull request instead.
-- Releases are signed with the key stored in these repository secrets: `NOLOCKQS_KEYSTORE_BASE64` (the keystore file, base64-encoded), `NOLOCKQS_KEYSTORE_PASSWORD`, `NOLOCKQS_KEY_ALIAS` and `NOLOCKQS_KEY_PASSWORD`. Without them, the release is saved as a draft signed with a temporary key.
+- Releases are signed with the key stored in these repository secrets: `NOLOCKQS_KEYSTORE_BASE64` (the keystore file, base64-encoded), `NOLOCKQS_KEYSTORE_PASSWORD`, `NOLOCKQS_KEY_ALIAS` and `NOLOCKQS_KEY_PASSWORD`. Without them, the APK is signed with a temporary key, so the previous version has to be uninstalled before installing a new release.
 
 Collaborators: Just Me!
 

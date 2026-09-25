@@ -49,11 +49,9 @@ jobs:
           echo "TAG=v$version" >> "$GITHUB_ENV"
           release=false
           if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            # Drafts have no tag yet, so releases are checked as well as tags.
-            releases=$(gh release list --limit 1000 --json tagName --jq '.[].tagName')
-            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" --silent 2>/dev/null \
-               || grep -Fxq "v$version" <<< "$releases"; then
-              echo "::notice::v$version already exists. Bump version and versionCode in module.prop to publish a new release."
+            # Only a published release has a tag; a leftover draft is replaced when publishing.
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" --silent 2>/dev/null; then
+              echo "::notice::v$version is already released. Bump version and versionCode in module.prop to publish a new release."
             else
               release=true
             fi
@@ -85,7 +83,7 @@ jobs:
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No NOLOCKQS_KEYSTORE_BASE64 secret: $TAG is signed with a temporary key and saved as a draft."
+            echo "::warning::No NOLOCKQS_KEYSTORE_* secrets: $TAG is signed with a temporary key, so the previous version must be uninstalled first. Add the secrets to allow in-place updates."
           fi
 
       - name: Build debug and release APKs
@@ -116,9 +114,12 @@ jobs:
               printf '\n> [!WARNING]\n> Signed with a temporary key: uninstall the previous version before installing this one.\n'
             fi
           } > "$RUNNER_TEMP/release-notes.md"
-          flags=(--title "$TAG" --target "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes)
-          if [ "$SIGNED" != "true" ]; then flags+=(--draft); fi
-          gh release create "$TAG" "$apk" "${flags[@]}"
+          # Replace any draft an earlier run left for this version.
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.draft and .tag_name == \"$TAG\" and .author.login == \"github-actions[bot]\") | .id" \
+            | while read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"; done
+          gh release create "$TAG" "$apk" --title "$TAG" --target "$GITHUB_SHA" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
 
       # Dependabot can only open pull requests. Once its update builds, it is merged into main
       # straight away and its branch deleted, so dependency updates land directly on main.
