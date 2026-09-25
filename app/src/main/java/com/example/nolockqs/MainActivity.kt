@@ -1,5 +1,6 @@
 package com.example.nolockqs
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -13,22 +14,20 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        
+
+        val versionName = packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName
+        binding.version.text = getString(R.string.version_format, versionName.orEmpty())
         updateModuleStatus()
     }
 
     private fun updateModuleStatus() {
-        if (isModuleActive()) {
-            binding.statusValue.text = getString(R.string.status_active)
-            binding.statusValue.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark))
-        } else {
-            binding.statusValue.text = getString(R.string.status_inactive)
-            binding.statusValue.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
-        }
+        val active = isModuleActive()
+        binding.statusValue.setText(if (active) R.string.status_active else R.string.status_inactive)
+        binding.statusValue.setTextColor(
+            ContextCompat.getColor(this, if (active) android.R.color.holo_green_dark else android.R.color.holo_red_dark)
+        )
     }
 
-    private fun isModuleActive(): Boolean {
-        // The Xposed module hooks this method to return true.
-        return false
-    }
+    /** Returns false here; [NoLockXposedModule] hooks it to return true inside this app's process. */
+    fun isModuleActive(): Boolean = false
 }

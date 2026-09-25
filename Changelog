@@ -10,3 +10,12 @@ V1.3 Changes:
 ### -Adapts automatically to rotation, screen size, density and punch-hole cutouts across Pixel 7-11
 ### -Density-safe fallback instead of a hardcoded pixel value
 ### -Hardened hooks: precise dispatchTouchEvent resolution and safe failure logging
+
+V1.4 Changes:
+### -New app icon
+### -Power menu blocked on the lock screen for every trigger (enable System Framework in the scope)
+### -Hooks resolve from fallback lists, so new Pixel and Android releases keep working, including the new scene-container shade
+### -A gesture that starts in the dead-zone is blocked until the finger lifts, not just its first touch
+### -Hot reload now moves live hooks to the updated code
+### -Module status screen shows ACTIVE again, plus the installed version
+### -Updated Android Gradle Plugin 9.4.0, Gradle 9.8.0 and core-ktx 1.19.1

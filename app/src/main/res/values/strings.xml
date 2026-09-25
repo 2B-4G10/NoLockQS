@@ -1,9 +1,11 @@
 <resources>
     <string name="app_name">NoLockQS</string>
+    <string name="version_format">Version %1$s</string>
     <string name="module_status_label">Module Status:</string>
     <string name="status_active">ACTIVE</string>
     <string name="status_inactive">INACTIVE (Enable in LSPosed)</string>
-    <string name="app_description">NoLockQS prevents the Quick Settings panel from being expanded while your device is locked, securing your connectivity toggles from unauthorized access.</string>
-    <string name="compatibility_info">Compatible with Pixel 7-11 running Android 15-17.</string>
+    <string name="setup_hint">In LSPosed, enable this module for System UI and System Framework, then reboot. System Framework is what blocks the power menu.</string>
+    <string name="app_description">NoLockQS blocks the Quick Settings panel and the power menu while your device is locked, so connectivity toggles and power controls can\'t be used without unlocking.</string>
+    <string name="compatibility_info">Works on rooted Google Pixel phones running Android 15 or newer, with a libxposed API 101+ framework such as Vector.</string>
     <string name="safe_app_info">This app does not collect any data and runs locally on your device.</string>
 </resources>
