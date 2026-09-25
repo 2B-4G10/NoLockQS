@@ -18,4 +18,4 @@ V1.4 Changes:
 ### -A gesture that starts in the dead-zone is blocked until the finger lifts, not just its first touch
 ### -Hot reload now moves live hooks to the updated code
 ### -Module status screen shows ACTIVE again, plus the installed version
-### -Updated Android Gradle Plugin 9.4.0, Gradle 9.8.0 and core-ktx 1.19.1
+### -Updated Android Gradle Plugin 9.4.1, Gradle 9.8.0 and core-ktx 1.19.1
