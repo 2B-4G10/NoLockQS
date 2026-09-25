@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Each update is merged into main by CI as soon as it builds (see .github/workflows/android.yml).
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gradle:
+        patterns: [ "*" ]
+    ignore:
+      # A new libxposed API level also means a new targetApiVersion in module.prop: bump it by hand.
+      - dependency-name: "io.github.libxposed:api"
+        update-types: [ "version-update:semver-major" ]
