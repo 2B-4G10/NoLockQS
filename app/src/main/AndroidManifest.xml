@@ -26,13 +26,13 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Prevents Quick Settings on Lockscreen (Pixel 7-11, A15-17)" />
+            android:value="Blocks Quick Settings and the power menu on the lock screen (rooted Pixel, Android 15+)" />
         <meta-data
             android:name="xposedminversion"
             android:value="93" />
         <meta-data
             android:name="xposedscope"
-            android:value="com.android.systemui,com.google.android.systemui" />
+            android:value="android,com.android.systemui,com.google.android.systemui" />
 
     </application>
 
