@@ -4,3 +4,9 @@ V1.2 Changes:
 ### -Dynamic Dead-Zone set for versatility
 ### -Fixed hidden Status Bar Icons
 ### -Power Menu Disabling on the way!
+
+V1.3 Changes:
+### -Dead-zone now measured live from WindowInsets (statusBars + displayCutout)
+### -Adapts automatically to rotation, screen size, density and punch-hole cutouts across Pixel 7-11
+### -Density-safe fallback instead of a hardcoded pixel value
+### -Hardened hooks: precise dispatchTouchEvent resolution and safe failure logging
