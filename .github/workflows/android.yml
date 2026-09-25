@@ -33,8 +33,12 @@ jobs:
 
       # Installs the Android command-line tools and accepts the SDK licenses so
       # AGP can auto-download the platform (API 37) and build-tools it needs.
+      # packages: '' skips the action's obsolete default 'tools' package, which
+      # was removed from the SDK repository and otherwise fails the step.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
