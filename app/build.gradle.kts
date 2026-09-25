@@ -22,12 +22,10 @@ android {
         targetSdk = 37
         versionCode = moduleProp.getProperty("versionCode").trim().toInt()
         versionName = moduleProp.getProperty("version").trim()
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
-        // The release key comes from the environment (CI secrets, see README > Releases).
+        // CI passes the release key from the NOLOCKQS_KEYSTORE_* repository secrets (.github/workflows/android.yml).
         providers.environmentVariable("NOLOCKQS_KEYSTORE_FILE").orNull?.let { keystore ->
             create("release") {
                 storeFile = file(keystore)
@@ -62,7 +60,4 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.junit)
 }
