@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     env:
       MODULE_PROP: app/src/main/resources/META-INF/xposed/module.prop
       GH_TOKEN: ${{ github.token }}
@@ -118,3 +119,16 @@ jobs:
           flags=(--title "$TAG" --target "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes)
           if [ "$SIGNED" != "true" ]; then flags+=(--draft); fi
           gh release create "$TAG" "$apk" "${flags[@]}"
+
+      # Dependabot can only open pull requests. Once its update builds, it is merged into main
+      # straight away and its branch deleted, so dependency updates land directly on main.
+      # If main is protected by required checks, auto-merge takes over once they pass.
+      - name: Merge the Dependabot update into main
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr merge "$PR_URL" --squash --delete-branch && exit 0
+          if [ "$(gh pr view "$PR_URL" --json state --jq .state)" = "OPEN" ]; then
+            gh pr merge "$PR_URL" --auto --squash --delete-branch
+          fi
