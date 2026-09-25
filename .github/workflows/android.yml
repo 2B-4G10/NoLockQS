@@ -12,46 +12,148 @@ permissions:
 
 concurrency:
   group: android-ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR builds are cancelled; main builds always finish because they may publish a release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MODULE_PROP: app/src/main/resources/META-INF/xposed/module.prop
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      java: ${{ steps.versions.outputs.java }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      # The Gradle daemon toolchain is pinned to Java 25 in
-      # gradle/gradle-daemon-jvm.properties, so the runner must provide a JDK 25.
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
+      # module.prop holds the app version; the Gradle daemon JDK is pinned in
+      # gradle/gradle-daemon-jvm.properties. Both are read here instead of being repeated.
+      - name: Read versions
+        id: versions
+        run: |
+          echo "version=$(sed -n 's/^version=//p' "$MODULE_PROP" | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+          echo "java=$(sed -n 's/^toolchainVersion=//p' gradle/gradle-daemon-jvm.properties | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK ${{ steps.versions.outputs.java }}
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: ${{ steps.versions.outputs.java }}
 
-      # Installs the Android command-line tools and accepts the SDK licenses so
-      # AGP can auto-download the platform (API 37) and build-tools it needs.
-      # packages: '' skips the action's obsolete default 'tools' package, which
-      # was removed from the SDK repository and otherwise fails the step.
+      # Accepts the SDK licenses so AGP can download the platform and build-tools it needs.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          packages: ''
+          log-accepted-android-sdk-licenses: false
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Build debug and release APKs
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: NoLockQS-debug-apk
+          name: NoLockQS-${{ steps.versions.outputs.version }}-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      TAG: v${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check whether the version is already released
+        id: existing
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null \
+             || gh release list --limit 1000 --json tagName --jq '.[].tagName' | grep -Fxq "$TAG"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG already exists. Bump version and versionCode in module.prop to publish a new release."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK ${{ needs.build.outputs.java }}
+        if: steps.existing.outputs.found == 'false'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ needs.build.outputs.java }}
+
+      - name: Set up Android SDK
+        if: steps.existing.outputs.found == 'false'
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+
+      - name: Set up Gradle
+        if: steps.existing.outputs.found == 'false'
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Load the signing key
+        id: signing
+        if: steps.existing.outputs.found == 'false'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NOLOCKQS_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            echo "NOLOCKQS_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No NOLOCKQS_KEYSTORE_BASE64 secret: $TAG is signed with a temporary key and saved as a draft."
+          fi
+
+      - name: Build release APK
+        if: steps.existing.outputs.found == 'false'
+        env:
+          NOLOCKQS_KEYSTORE_PASSWORD: ${{ secrets.NOLOCKQS_KEYSTORE_PASSWORD }}
+          NOLOCKQS_KEY_ALIAS: ${{ secrets.NOLOCKQS_KEY_ALIAS }}
+          NOLOCKQS_KEY_PASSWORD: ${{ secrets.NOLOCKQS_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      # The release is named exactly like its tag, and the APK carries the same name.
+      - name: Publish ${{ env.TAG }}
+        if: steps.existing.outputs.found == 'false'
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          apk="NoLockQS-$TAG.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          changes=$(awk -v v="$VERSION" 'tolower($0) ~ "^v" v "([ :]|$)" { found = 1; next } found && /^[Vv][0-9]/ { exit } found' Changelog \
+            | sed -e 's/^###[[:space:]]*-[[:space:]]*/- /' -e '/^[[:space:]]*$/d')
+          {
+            echo "## Install"
+            echo "1. Install \`$apk\` on your rooted device."
+            echo "2. In LSPosed, enable NoLockQS for **System UI** and **System Framework**."
+            echo "3. Reboot and the protection is active."
+            if [ -n "$changes" ]; then printf '\n## Changes\n%s\n' "$changes"; fi
+            if [ "$SIGNED" != "true" ]; then
+              printf '\n> [!WARNING]\n> Signed with a temporary key: uninstall the previous version before installing this one.\n'
+            fi
+          } > release-notes.md
+          flags=(--title "$TAG" --target "$GITHUB_SHA" --notes-file release-notes.md --generate-notes)
+          if [ "$SIGNED" != "true" ]; then flags+=(--draft); fi
+          gh release create "$TAG" "$apk" "${flags[@]}"

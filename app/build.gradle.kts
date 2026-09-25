@@ -1,5 +1,13 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
+}
+
+// module.prop is the single source of truth for the version: LSPosed shows it, the APK copies it,
+// and CI publishes every new version as the GitHub release "v<version>".
+val moduleProp = Properties().apply {
+    load(providers.fileContents(layout.projectDirectory.file("src/main/resources/META-INF/xposed/module.prop")).asText.get().reader())
 }
 
 android {
@@ -12,10 +20,22 @@ android {
         applicationId = "com.example.nolockqs"
         minSdk = 35
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.3"
+        versionCode = moduleProp.getProperty("versionCode").trim().toInt()
+        versionName = moduleProp.getProperty("version").trim()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        // The release key comes from the environment (CI secrets, see README > Releases).
+        providers.environmentVariable("NOLOCKQS_KEYSTORE_FILE").orNull?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = providers.environmentVariable("NOLOCKQS_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("NOLOCKQS_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("NOLOCKQS_KEY_PASSWORD").orNull
+            }
+        }
     }
 
     buildTypes {
@@ -23,6 +43,8 @@ android {
             optimization {
                 enable = false
             }
+            // Without a release key, sign with the debug key so the APK stays installable.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
