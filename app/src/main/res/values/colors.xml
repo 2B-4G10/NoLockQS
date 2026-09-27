@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="status_active">#FF1E8E3E</color>
+    <!-- Material has no "success" role, so the active status gets its own green container. -->
+    <color name="status_active_container">#FFC8EFD2</color>
+    <color name="status_on_active_container">#FF0A3A1C</color>
 </resources>

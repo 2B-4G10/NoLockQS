@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.6
+
+- Redesigned module screen: a status card that turns green or red, a list of what is blocked while the phone is locked, and a cleaner header
+- Support NoLockQS on Patreon straight from the app
+
 ## v1.5
 
 - Refreshed module screen: Material You colors, a status card, and a layout that stays clear of the status bar and scrolls in any orientation
