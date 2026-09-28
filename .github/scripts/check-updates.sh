@@ -30,12 +30,17 @@ open_issue() {
   fi
 }
 
-# 1. Android SDK: move compileSdk and targetSdk to the newest stable platform.
+# 1. Android SDK: move compileSdk and targetSdk to the newest stable platform. Platforms are
+#    listed as "android-36" or, since API 37, with a minor version ("android-37.2"); betas,
+#    canaries and extension packages carry a suffix and are skipped.
 compile_sdk=$(sed -n 's/.*version = release(\([0-9]*\)).*/\1/p' "$BUILD_FILE")
 target_sdk=$(sed -n 's/^ *targetSdk = \([0-9]*\)$/\1/p' "$BUILD_FILE")
-latest_sdk=$("$SDKMANAGER" --list 2>/dev/null | sed -n 's/^ *platforms;android-\([0-9][0-9]*\) .*/\1/p' | sort -n | tail -1)
+latest_sdk=$("$SDKMANAGER" --list 2>/dev/null \
+  | sed -En 's/^ *platforms;android-([0-9]+)(\.[0-9]+)?[[:space:]].*/\1/p' | sort -n | tail -1)
 echo "Android SDK: compileSdk $compile_sdk, targetSdk $target_sdk, newest stable ${latest_sdk:-unknown}"
-if [ -n "$latest_sdk" ] && [ "$latest_sdk" -gt "$compile_sdk" ]; then
+if [ -z "$latest_sdk" ] || [ "$latest_sdk" -lt "$compile_sdk" ]; then
+  echo "::warning::sdkmanager lists no stable platform at or above compileSdk $compile_sdk; the SDK package naming may have changed."
+elif [ "$latest_sdk" -gt "$compile_sdk" ]; then
   sed -i -e "s/version = release($compile_sdk)/version = release($latest_sdk)/" \
          -e "s/^\( *targetSdk = \)$target_sdk$/\1$latest_sdk/" "$BUILD_FILE"
   changes+=("target Android API $latest_sdk (was $compile_sdk)")
