@@ -10,7 +10,6 @@ updates:
       gradle:
         patterns: [ "*" ]
     ignore:
-      # A new libxposed API level also changes targetApiVersion in module.prop, so the weekly
-      # update check (.github/scripts/check-updates.sh) moves both together.
-      - dependency-name: "io.github.libxposed:api"
-        update-types: [ "version-update:semver-major" ]
+      # libxposed is left to the weekly update check (.github/scripts/check-updates.sh): its api and
+      # service artifacts share one version, which moves targetApiVersion in module.prop with it.
+      - dependency-name: "io.github.libxposed:*"

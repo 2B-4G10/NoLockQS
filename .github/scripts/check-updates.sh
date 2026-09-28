@@ -3,7 +3,8 @@
 #  - the Gradle wrapper, with the distribution checksum pinned,
 #  - the Android Gradle Plugin, to its newest stable release,
 #  - compileSdk and targetSdk, to the newest stable Android SDK platform,
-#  - libxposed, with targetApiVersion in module.prop when its API level changes.
+#  - libxposed (api and service, kept on one version), with targetApiVersion in module.prop when
+#    its API level changes.
 # Each update is applied on top of the previous ones and kept only if the debug and release builds
 # still pass; the ones that build are pushed to main together. An update that can't be applied is
 # left out and reported as a GitHub issue, and so is a new Android or libxposed API level, whose
@@ -25,13 +26,15 @@ device_tests=()  # new API levels to test on a device
 # True when version $1 is newer than version $2.
 newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
 
-# The newest stable version (digits and dots only) in a Maven metadata file, or nothing if it
-# can't be read. <release> is not used: Google's repository points it at previews.
-newest_stable() {
+# The stable versions (digits and dots only) in a Maven metadata file, one per line, or nothing if
+# it can't be read. <release> is not used: Google's repository points it at previews.
+stable_versions() {
   { curl -fsS --retry 3 "$1" || true; } \
     | { grep -oE '<version>[0-9]+(\.[0-9]+)*</version>' || true; } \
-    | sed 's/<[^>]*>//g' | sort -V | tail -1
+    | sed 's/<[^>]*>//g' | sort -u
 }
+
+newest() { sort -V | tail -1; }
 
 # "a", "a and b", "a, b and c".
 join_and() {
@@ -122,7 +125,7 @@ fi
 
 # 2. Android Gradle Plugin. Before the SDK, as a new SDK level can need it.
 agp_now=$(sed -n 's/^agp = "\(.*\)"$/\1/p' "$CATALOG")
-agp_latest=$(newest_stable https://dl.google.com/android/maven2/com/android/tools/build/gradle/maven-metadata.xml)
+agp_latest=$(stable_versions https://dl.google.com/android/maven2/com/android/tools/build/gradle/maven-metadata.xml | newest)
 echo "Android Gradle Plugin: using $agp_now, newest stable ${agp_latest:-unknown}"
 if [ -z "$agp_latest" ]; then
   echo "::warning::Could not read the Android Gradle Plugin versions from Google's Maven repository."
@@ -132,10 +135,11 @@ fi
 
 # 3. Android SDK. Platforms are listed as "android-36" or, since API 37, with a minor version
 #    ("android-37.2"); betas, canaries and extension packages carry a suffix and are skipped.
+#    Newer command-line tools separate the package path with "/" instead of ";".
 compile_sdk=$(sed -n 's/.*version = release(\([0-9]*\)).*/\1/p' "$BUILD_FILE")
 target_sdk=$(sed -n 's/^ *targetSdk = \([0-9]*\)$/\1/p' "$BUILD_FILE")
 latest_sdk=$({ "$SDKMANAGER" --list 2>/dev/null || true; } \
-  | sed -En 's/^ *platforms;android-([0-9]+)(\.[0-9]+)?[[:space:]].*/\1/p' | sort -n | tail -1)
+  | sed -En 's/^ *platforms[;\/]android-([0-9]+)(\.[0-9]+)?[[:space:]].*/\1/p' | sort -n | tail -1)
 echo "Android SDK: compileSdk ${compile_sdk:-unknown}, targetSdk ${target_sdk:-unknown}, newest stable ${latest_sdk:-unknown}"
 if [ -z "$compile_sdk" ] || [ -z "$target_sdk" ]; then
   echo "::warning::Could not read compileSdk and targetSdk from $BUILD_FILE."
@@ -147,9 +151,12 @@ elif [ "$latest_sdk" -gt "$compile_sdk" ]; then
   fi
 fi
 
-# 4. libxposed.
+# 4. libxposed. Its api (for the hooks) and service (for the app) share one version, so only a
+#    version published for both is used.
 xposed_now=$(sed -n 's/^libxposed = "\(.*\)"$/\1/p' "$CATALOG")
-xposed_latest=$(newest_stable https://repo1.maven.org/maven2/io/github/libxposed/api/maven-metadata.xml)
+xposed_repo=https://repo1.maven.org/maven2/io/github/libxposed
+xposed_latest=$(comm -12 <(stable_versions "$xposed_repo/api/maven-metadata.xml") \
+  <(stable_versions "$xposed_repo/service/maven-metadata.xml") | newest)
 echo "libxposed: using $xposed_now, newest ${xposed_latest:-unknown}"
 if [ -z "$xposed_latest" ]; then
   echo "::warning::Could not read the libxposed versions from Maven Central."
