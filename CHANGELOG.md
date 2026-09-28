@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.8
+
+- Turn Quick Settings and power menu blocking on or off separately: tap a box in the app, green means on and grey means off
+- The status card now says what is blocked, and turns red when every protection is off
+- The heart in the support section is now red
+
 ## v1.7
 
 - Releases are now signed with a permanent key: after this one-time reinstall, future updates install over the previous version
