@@ -1,0 +1,45 @@
+name: Update check
+
+# Weekly check for the bumps that follow new Android and toolchain releases: the Android SDK
+# level, the Gradle wrapper and new libxposed API levels (Dependabot covers the Gradle
+# dependencies). Verified bumps are pushed to main; anything else is reported as an issue.
+# Like the build, it only uses tools preinstalled on GitHub's Ubuntu runners.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: update-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check for updates
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout main
+        run: |
+          git init -q .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git config --local http.extraheader "AUTHORIZATION: basic $auth"
+          git fetch -q --depth=50 origin main
+          git checkout -q -B main FETCH_HEAD
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up JDK and Android SDK
+        run: .github/scripts/setup-toolchain.sh
+
+      - name: Check the Android SDK, Gradle and libxposed
+        run: .github/scripts/check-updates.sh

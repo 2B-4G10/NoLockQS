@@ -59,17 +59,7 @@ jobs:
           echo "release=$release" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK and Android SDK
-        run: |
-          java=$(sed -n 's/^toolchainVersion=//p' gradle/gradle-daemon-jvm.properties | tr -d '[:space:]')
-          jdk_var="JAVA_HOME_${java}_X64"
-          if [ -n "${!jdk_var:-}" ]; then
-            echo "JAVA_HOME=${!jdk_var}" >> "$GITHUB_ENV"
-          else
-            echo "::notice::JDK $java is not preinstalled on this runner; Gradle provisions it."
-          fi
-          # Accept any new SDK licenses so AGP can download the platform and build-tools it needs.
-          sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' 2>/dev/null | sort -V | tail -1 || true)
-          if [ -n "$sdkmanager" ]; then yes | "$sdkmanager" --licenses > /dev/null || true; fi
+        run: .github/scripts/setup-toolchain.sh
 
       - name: Load the signing key
         id: signing
