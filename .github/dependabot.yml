@@ -1,6 +1,7 @@
 version: 2
 updates:
-  # Each update is merged into main by CI as soon as it builds (see .github/workflows/android.yml).
+  # Once an update builds, CI puts it on main under the repository owner's name and closes the
+  # pull request (see .github/workflows/android.yml).
   - package-ecosystem: gradle
     directory: /
     schedule:

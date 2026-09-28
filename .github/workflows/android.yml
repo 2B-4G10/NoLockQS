@@ -112,15 +112,15 @@ jobs:
           gh release create "$TAG" "$apk" --title "$TAG" --target "$GITHUB_SHA" \
             --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
 
-      # Dependabot can only open pull requests. Once its update builds, it is merged into main
-      # straight away and its branch deleted, so dependency updates land directly on main.
-      # If main is protected by required checks, auto-merge takes over once they pass.
-      - name: Merge the Dependabot update into main
+      # Dependabot can only open pull requests, and merging one would make dependabot[bot] the
+      # author on main. Once its update builds, the same change goes straight to main under the
+      # repository owner's name, with github-actions[bot] as the committer, and the pull request
+      # is closed.
+      - name: Put the Dependabot update on main
         if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
         env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          gh pr merge "$PR_URL" --squash --delete-branch && exit 0
-          if [ "$(gh pr view "$PR_URL" --json state --jq .state)" = "OPEN" ]; then
-            gh pr merge "$PR_URL" --auto --squash --delete-branch
-          fi
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: .github/scripts/apply-dependabot-update.sh
