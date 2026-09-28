@@ -26,10 +26,6 @@ Built on the modern Xposed API (libxposed 101+), so it is not tied to a specific
 2. Open Vector, enable the module, and check the scope it asks for.
 3. Reboot, and the protection is active!
 
-## 🐞 Known issues
-
-- The APK is signed with a temporary key, so the previous version has to be uninstalled before installing a new release.
-
 ## 📜 License
 
 Released under the [Apache License 2.0](LICENSE).
