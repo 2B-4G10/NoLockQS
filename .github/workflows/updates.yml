@@ -1,8 +1,9 @@
 name: Update check
 
-# Weekly check for the bumps that follow new Android and toolchain releases: the Android SDK
-# level, the Gradle wrapper and new libxposed API levels (Dependabot covers the Gradle
-# dependencies). Verified bumps are pushed to main; anything else is reported as an issue.
+# Weekly check for the updates that follow new Android and toolchain releases: the Gradle
+# wrapper, the Android Gradle Plugin, the Android SDK level and libxposed (Dependabot covers the
+# other Gradle dependencies). Each update is kept only if the build passes; those are pushed to
+# main, and anything that needs a person is reported as an issue.
 # Like the build, it only uses tools preinstalled on GitHub's Ubuntu runners.
 
 on:
@@ -25,6 +26,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      # Updates are authored by the repository owner and committed by github-actions[bot].
+      GIT_COMMITTER_NAME: github-actions[bot]
+      GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
 
     steps:
       - name: Checkout main
@@ -35,11 +39,13 @@ jobs:
           git config --local http.extraheader "AUTHORIZATION: basic $auth"
           git fetch -q --depth=50 origin main
           git checkout -q -B main FETCH_HEAD
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          owner_name=$(gh api "users/$GITHUB_REPOSITORY_OWNER" --jq '.name // empty' || true)
+          git config --local user.name "${owner_name:-$GITHUB_REPOSITORY_OWNER}"
+          git config --local user.email "$GITHUB_REPOSITORY_OWNER_ID+$GITHUB_REPOSITORY_OWNER@users.noreply.github.com"
+          echo "Updates are authored by $(git config user.name) <$(git config user.email)>"
 
       - name: Set up JDK and Android SDK
         run: .github/scripts/setup-toolchain.sh
 
-      - name: Check the Android SDK, Gradle and libxposed
+      - name: Check Gradle, the Android Gradle Plugin, the Android SDK and libxposed
         run: .github/scripts/check-updates.sh
