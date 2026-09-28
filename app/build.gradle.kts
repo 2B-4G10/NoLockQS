@@ -56,6 +56,8 @@ android {
 
 dependencies {
     compileOnly(libs.libxposed.api)
+    // Connects the app to the framework, which shares the feature switches with the hooks.
+    implementation(libs.libxposed.service)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)

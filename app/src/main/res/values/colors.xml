@@ -3,4 +3,18 @@
     <!-- Material has no "success" role, so the active status gets its own green container. -->
     <color name="status_active_container">#FFC8EFD2</color>
     <color name="status_on_active_container">#FF0A3A1C</color>
+
+    <!-- The protection boxes: green when on, grey when off. -->
+    <color name="feature_on_container">@color/status_active_container</color>
+    <color name="feature_on_content">@color/status_on_active_container</color>
+    <color name="feature_on_accent">#FF2F6B45</color>
+    <color name="feature_on_on_accent">#FFFFFFFF</color>
+    <color name="feature_off_container">#FFE7E7E7</color>
+    <color name="feature_off_content">#FF1F1F1F</color>
+    <color name="feature_off_content_variant">#FF5F5F5F</color>
+    <color name="feature_off_accent">#FFCFCFCF</color>
+    <color name="feature_off_on_accent">#FF5F5F5F</color>
+
+    <!-- The heart in the support box, in the red of the app icon. -->
+    <color name="heart">#FFDD0E1C</color>
 </resources>

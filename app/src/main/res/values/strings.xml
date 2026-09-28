@@ -5,10 +5,18 @@
 
     <string name="status_active_title">Module active</string>
     <string name="status_active_body">Quick Settings and the power menu are blocked whenever your phone is locked.</string>
+    <string name="status_active_body_qs">Quick Settings is blocked whenever your phone is locked.</string>
+    <string name="status_active_body_power">The power menu is blocked whenever your phone is locked.</string>
+    <string name="status_off_title">Protection off</string>
+    <string name="status_off_body">Nothing is blocked while your phone is locked. Tap a box below to turn a protection back on.</string>
     <string name="status_inactive_title">Module inactive</string>
     <string name="status_inactive_body">Enable NoLockQS in Vector for System UI and System Framework, then reboot.</string>
 
     <string name="protection_header">While your phone is locked</string>
+    <string name="protection_hint">Tap a box to turn it on or off.</string>
+    <string name="feature_state_on">On</string>
+    <string name="feature_state_off">Off</string>
+    <string name="switches_unavailable">Enable NoLockQS in Vector to change this, then reopen the app.</string>
     <string name="feature_qs_title">Quick Settings</string>
     <string name="feature_qs_body">Swipes from the status bar are blocked, so toggles like Wi-Fi, Bluetooth and airplane mode stay out of reach.</string>
     <string name="feature_power_title">Power menu</string>

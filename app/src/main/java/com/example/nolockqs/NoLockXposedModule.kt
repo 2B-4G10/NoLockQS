@@ -2,6 +2,7 @@ package com.example.nolockqs
 
 import android.app.KeyguardManager
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -30,6 +31,9 @@ import java.util.WeakHashMap
  *  - The power menu: in system_server, every trigger (power key, key chords, accessibility) is
  *    refused before SystemUI or the legacy dialog is asked to show it. SystemUI refuses it too,
  *    as a fallback for when the System Framework scope is not enabled.
+ *
+ * Each protection has a switch in the app (see [FeatureSettings]), which the framework shares with
+ * the hooked processes and keeps current, so a change applies right away.
  *
  * Nothing is tied to a device model or an Android release. Hook targets are resolved from ordered
  * lists of known class and method names, a missing target only disables its own layer (and is
@@ -79,6 +83,13 @@ class NoLockXposedModule : XposedModule() {
     /** Shade roots whose current gesture began in the dead-zone; the rest of it is consumed too. */
     private val blockedGestures: MutableSet<View> =
         Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap<View, Boolean>()))
+
+    /** The app's feature switches as the framework shares them; read on first use, see [isFeatureEnabled]. */
+    @Volatile
+    private var featureSettings: SharedPreferences? = null
+
+    @Volatile
+    private var featureSettingsFailureLogged = false
 
     private val systemPropertiesGetBoolean: Method? by lazy {
         runCatching {
@@ -153,7 +164,9 @@ class NoLockXposedModule : XposedModule() {
     }
 
     private fun shouldBlockShadeTouch(view: View, event: MotionEvent): Boolean =
-        event.rawY <= statusBarDeadZone(view) && isProtectionEnabled() && isKeyguardLocked(view.context)
+        event.rawY <= statusBarDeadZone(view) &&
+            isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) &&
+            isKeyguardLocked(view.context)
 
     /** True unless the hook sits on [ViewGroup] and [view] is not one of the shade roots. */
     private fun isShadeRoot(chain: Chain, view: View): Boolean {
@@ -197,7 +210,7 @@ class NoLockXposedModule : XposedModule() {
         override fun intercept(chain: Chain): Any? {
             // GlobalActions#showDialog receives "keyguard showing" as its first argument.
             val keyguardShowing = chain.args.firstOrNull() == true
-            if (isProtectionEnabled() && (keyguardShowing || isSystemServerLocked(chain.thisObject))) {
+            if (isFeatureEnabled(FeatureSettings.BLOCK_POWER_MENU) && (keyguardShowing || isSystemServerLocked(chain.thisObject))) {
                 log(Log.INFO, TAG, "Blocked the power menu (${chain.executable.name}).")
                 return blockedResult(chain.executable)
             }
@@ -207,7 +220,7 @@ class NoLockXposedModule : XposedModule() {
 
     private val systemUiPowerMenuHooker = object : Hooker {
         override fun intercept(chain: Chain): Any? {
-            if (isProtectionEnabled() && isKeyguardLocked(contextOf(chain.thisObject))) {
+            if (isFeatureEnabled(FeatureSettings.BLOCK_POWER_MENU) && isKeyguardLocked(contextOf(chain.thisObject))) {
                 acknowledgeGlobalActions(chain)
                 log(Log.INFO, TAG, "Blocked the power menu in SystemUI (${chain.executable.name}).")
                 return blockedResult(chain.executable)
@@ -317,6 +330,25 @@ class NoLockXposedModule : XposedModule() {
     } catch (ignored: ClassNotFoundException) {
         null
     } catch (ignored: LinkageError) {
+        null
+    }
+
+    /**
+     * Whether a protection is on: the master property must allow it, and so must its switch in
+     * the app. Anything that can't be read counts as on.
+     */
+    private fun isFeatureEnabled(key: String): Boolean =
+        isProtectionEnabled() &&
+            (runCatching { featureSettings()?.getBoolean(key, FeatureSettings.DEFAULT_ON) }.getOrNull() ?: FeatureSettings.DEFAULT_ON)
+
+    /** The feature switches, fetched from the framework once it can provide them. */
+    private fun featureSettings(): SharedPreferences? = featureSettings ?: try {
+        getRemotePreferences(FeatureSettings.GROUP).also { featureSettings = it }
+    } catch (t: Throwable) {
+        if (!featureSettingsFailureLogged) {
+            featureSettingsFailureLogged = true
+            log(Log.WARN, TAG, "The feature switches can't be read, so every protection stays on.", t)
+        }
         null
     }
 
