@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7
+
+- Releases are now signed with a permanent key: after this one-time reinstall, future updates install over the previous version
+
 ## v1.6
 
 - Redesigned module screen: a status card that turns green or red, a list of what is blocked while the phone is locked, and a cleaner header
