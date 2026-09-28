@@ -13,7 +13,7 @@
 
 </div>
 
-Built on the modern Xposed API (libxposed 101+), so it is not tied to a specific Pixel model or Android release.
+Built on the modern Xposed API (libxposed 101+); Not tied to a specific Pixel model or Android release.
 
 ## 🤖 Requirements
 
