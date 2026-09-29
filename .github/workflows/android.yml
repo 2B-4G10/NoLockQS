@@ -47,6 +47,7 @@ jobs:
           version=$(sed -n 's/^version=//p' "$MODULE_PROP" | tr -d '[:space:]')
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "TAG=v$version" >> "$GITHUB_ENV"
+          echo "APK=NoLockQS-v$version.apk" >> "$GITHUB_ENV"
           release=false
           if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
             # Only a published release has a tag; a leftover draft is replaced when publishing.
@@ -90,14 +91,11 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
-          apk="NoLockQS-$TAG.apk"
-          cp app/build/outputs/apk/release/app-release.apk "$apk"
-          # The "## v<version>" section of CHANGELOG.md, up to the next "## " heading.
-          changes=$(awk -v v="$VERSION" 'tolower($0) ~ "^## v" v "([ :]|$)" { found = 1; next } found && /^## / { exit } found' CHANGELOG.md \
-            | sed '/^[[:space:]]*$/d')
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          changes=$(.github/scripts/changelog.sh "$VERSION")
           {
             echo "## Install"
-            echo "1. Install \`$apk\` on your rooted device."
+            echo "1. Install \`$APK\` on your rooted device."
             echo "2. In Vector, enable NoLockQS for **System UI** and **System Framework**."
             echo "3. Reboot and the protection is active."
             if [ -n "$changes" ]; then printf '\n## Changes\n%s\n' "$changes"; fi
@@ -109,8 +107,24 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq ".[] | select(.draft and .tag_name == \"$TAG\" and .author.login == \"github-actions[bot]\") | .id" \
             | while read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"; done
-          gh release create "$TAG" "$apk" --title "$TAG" --target "$GITHUB_SHA" \
+          gh release create "$TAG" "$APK" --title "$TAG" --target "$GITHUB_SHA" \
             --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
+
+      # Vector and LSPosed list modules from the Xposed Modules Repository (modules.lsposed.org), which
+      # shows NoLockQS from github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS. Every build on
+      # main brings that repository's description up to date, and a version it doesn't have yet is
+      # released there with the same APK, tagged "<versionCode>-<versionName>" as its rules require.
+      # It needs the XPOSED_MODULES_REPO_TOKEN secret: a personal access token (classic) of an admin
+      # of that repository with the public_repo scope. Without it this step only warns; add it, then
+      # run this workflow on main to catch up.
+      - name: Publish to the Xposed Modules Repository
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
+          XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: .github/scripts/publish-xposed-modules-repo.sh
 
       # Dependabot can only open pull requests, and merging one would make dependabot[bot] the
       # author on main. Once its update builds, the same change goes straight to main under the
