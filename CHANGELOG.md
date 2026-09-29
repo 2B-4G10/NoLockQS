@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.9
+
+- Every release is now also published to the Xposed Modules Repository ([modules.lsposed.org](https://modules.lsposed.org/module/io.github.i2B4G10.NoLockQS))
+- Its package name is now `io.github.i2B4G10.NoLockQS`, the name the repository lists it under. This is a one-time reinstall: uninstall the previous NoLockQS, install this one, then enable it again in Vector for System UI and System Framework
+
 ## v1.8
 
 - Turn Quick Settings and power menu blocking on or off separately: tap a box in the app, green means on and grey means off
