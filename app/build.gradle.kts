@@ -5,7 +5,8 @@ plugins {
 }
 
 // module.prop is the single source of truth for the version: LSPosed shows it, the APK copies it,
-// and CI publishes every new version as the GitHub release "v<version>".
+// and CI publishes every new version as the GitHub release "v<version>" and, in the Xposed Modules
+// Repository, as the release tagged "<versionCode>-<version>".
 val moduleProp = Properties().apply {
     load(providers.fileContents(layout.projectDirectory.file("src/main/resources/META-INF/xposed/module.prop")).asText.get().reader())
 }
@@ -17,7 +18,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.nolockqs"
+        // Must match the module's repository name in the Xposed Modules Repository
+        // (github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS), which lists it by package name.
+        applicationId = "io.github.i2B4G10.NoLockQS"
         minSdk = 35
         targetSdk = 37
         versionCode = moduleProp.getProperty("versionCode").trim().toInt()
