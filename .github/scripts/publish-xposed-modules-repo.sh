@@ -10,8 +10,8 @@
 # sees an APK swapped in later, which is why the release is created with its APK already attached.
 #
 # This script:
-#  1. makes the repository's files match this repository: its README.md (with relative links
-#     pointing back here), a SOURCE_URL to this repository, FUNDING.yml and the files in
+#  1. makes the repository's files match this branch: its README.md (with relative links pointing
+#     back here), a SOURCE_URL to this repository, FUNDING.yml and the files in
 #     .github/xposed-modules-repo (SUMMARY). Nothing else: the rules ask for no source code there.
 #  2. sets the repository's description to the module name and its homepage to this repository.
 #  3. unless it is already there, releases the version in module.prop with the APK of this
@@ -57,9 +57,10 @@ remote clone -q --depth 1 "$GITHUB_SERVER_URL/$MODULE_REPO.git" "$repo_dir"
 branch=$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD)
 git -C "$repo_dir" rm -rq --ignore-unmatch .
 
-# Relative links in README.md point at this commit here: images at the raw file, links at its page.
-raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA"
-blob="$source_url/blob/$GITHUB_SHA"
+# Relative links in README.md point at this branch here (images at the raw file, links at its page),
+# so the copy only changes when README.md does.
+raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_REF_NAME"
+blob="$source_url/blob/$GITHUB_REF_NAME"
 sed -E \
   -e 's|src="([^":#/][^":]*)"|src="'"$raw"'/\1"|g' \
   -e 's|href="([^":#/][^":]*)"|href="'"$blob"'/\1"|g' \
