@@ -70,7 +70,10 @@ if grep -qi '^x-oauth-scopes:' <<< "$token_info" && ! grep -Eq '(^|[ ,])(public_
   echo "::error::The XPOSED_MODULES_REPO_TOKEN secret can't push to $MODULE_REPO, as it lacks the public_repo scope: $TOKEN_HELP."
   exit 1
 fi
-echo "The XPOSED_MODULES_REPO_TOKEN secret works (scopes: ${scopes:-not reported}; expires: ${expires:-never})."
+echo "The XPOSED_MODULES_REPO_TOKEN secret works (expires: ${expires:-never})."
+if [ -n "$scopes" ] && [ "$scopes" != public_repo ]; then
+  echo "::warning::The XPOSED_MODULES_REPO_TOKEN secret has more access than publishing needs, which is only the public_repo scope. A token with just that scope is safer, as a leak could then do no more than this: $TOKEN_HELP, then revoke the old one."
+fi
 if [ -n "$expires" ] && expires_at=$(date -d "$expires" +%s 2>/dev/null); then
   days_left=$(( (expires_at - $(date +%s)) / 86400 ))
   if [ "$days_left" -lt 14 ]; then

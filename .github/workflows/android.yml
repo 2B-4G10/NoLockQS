@@ -25,6 +25,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       MODULE_PROP: app/src/main/resources/META-INF/xposed/module.prop
       GH_TOKEN: ${{ github.token }}
@@ -110,26 +112,6 @@ jobs:
           gh release create "$TAG" "$APK" --title "$TAG" --target "$GITHUB_SHA" \
             --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
 
-      # Vector and LSPosed list modules from the Xposed Modules Repository (modules.lsposed.org), which
-      # shows NoLockQS from github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS. Every build on
-      # main brings that repository up to date, and the version released here (now or before) is
-      # released there with the same APK, tagged "<versionCode>-<versionName>" as its rules require.
-      # Releases published here by hand go there through .github/workflows/xposed-modules-repo.yml,
-      # which also checks on it every week.
-      # It needs the XPOSED_MODULES_REPO_TOKEN secret: a personal access token (classic) of an admin
-      # of that repository with the public_repo scope. Without it this step only warns; add it, then
-      # run this workflow on main to catch up.
-      - name: Publish to the Xposed Modules Repository
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        env:
-          MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
-          XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
-          SOURCE_BRANCH: ${{ github.ref_name }}
-          RELEASE_TAG: ${{ env.TAG }}
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-        run: .github/scripts/publish-xposed-modules-repo.sh
-
       # Dependabot can only open pull requests, and merging one would make dependabot[bot] the
       # author on main. Once its update builds, the same change goes straight to main under the
       # repository owner's name, with github-actions[bot] as the committer, and the pull request
@@ -142,3 +124,44 @@ jobs:
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: .github/scripts/apply-dependabot-update.sh
+
+  # Vector and LSPosed list modules from the Xposed Modules Repository (modules.lsposed.org), which
+  # shows NoLockQS from github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS. Every build on
+  # main brings that repository up to date, and the version released here (now or before) is
+  # released there with the same APK, tagged "<versionCode>-<versionName>" as its rules require.
+  # Releases published here by hand go there through .github/workflows/xposed-modules-repo.yml,
+  # which also checks on it every week.
+  # It needs the XPOSED_MODULES_REPO_TOKEN secret: a personal access token (classic) of an admin
+  # of that repository with only the public_repo scope. Without it this job only warns; add it,
+  # then run this workflow on main to catch up. It runs apart from the build, which runs code from
+  # third-party Gradle plugins and libraries that must not get near the token.
+  xposed:
+    name: Publish to the Xposed Modules Repository
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout
+        run: |
+          git init -q .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth=1 origin "$GITHUB_SHA"
+          git checkout -q --detach FETCH_HEAD
+
+      - name: Set up JDK and Android SDK
+        run: .github/scripts/setup-toolchain.sh
+
+      - name: Publish to the Xposed Modules Repository
+        env:
+          MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
+          XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          RELEASE_TAG: v${{ needs.build.outputs.version }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: .github/scripts/publish-xposed-modules-repo.sh
