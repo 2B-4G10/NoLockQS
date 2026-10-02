@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Publishes the current version to the module's repository in the Xposed Modules Repository
-# (modules.lsposed.org). Vector's Store shows that site's list from a copy, backup.modules.lsposed.org,
-# which runs about three days behind it. The repository is named after the module's package, and
-# the site lists it only while it has a description and a release that:
+# (modules.lsposed.org). The site rebuilds once the organization's GitHub activity pauses for two
+# minutes, at most every 15 minutes, so a release can take hours to show up there. Vector's Store
+# shows the site's list from a copy, backup.modules.lsposed.org, which runs about three days behind.
+# The repository is named after the module's package, and the site lists it only while it has a
+# description and a release that:
 #  - is tagged "<versionCode>-<versionName>" (for example 8-1.9); any other tag is ignored,
 #  - is published, not a draft,
 #  - has an asset of type application/vnd.android.package-archive: the APK.
@@ -156,5 +158,5 @@ curl -fsS -o /dev/null -X POST -H "Authorization: Bearer $XPOSED_TOKEN" -H "Cont
 url=$(module_gh api -X PATCH "repos/$MODULE_REPO/releases/$release_id" -F draft=false -f make_latest=true --jq .html_url)
 
 echo "$MODULE_REPO: released $tag at $url"
-echo "modules.lsposed.org lists it within about 15 minutes, and Vector's Store about three days later."
+echo "modules.lsposed.org lists it at its next rebuild, which can take a few hours, and Vector's Store about three days after that."
 echo "The bot's check shows up at https://github.com/Xposed-Modules-Repo/modules/actions/workflows/tag.yml"
