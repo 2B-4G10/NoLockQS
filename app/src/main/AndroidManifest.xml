@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The framework finds the module through src/main/resources/META-INF/xposed, and Vector lists it
+     with its android:label and android:description. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
         android:name=".NoLockApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:description="@string/module_description"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -21,19 +24,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="Blocks Quick Settings and the power menu on the lock screen (rooted Pixel, Android 15+)" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="93" />
-        <meta-data
-            android:name="xposedscope"
-            android:value="android,com.android.systemui,com.google.android.systemui" />
 
     </application>
 

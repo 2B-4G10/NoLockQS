@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">NoLockQS</string>
+    <!-- Shown under the name in Vector's module list. -->
+    <string name="module_description">Blocks Quick Settings and the power menu on the lock screen</string>
     <string name="tagline">Keeps Quick Settings and the power menu locked.</string>
     <string name="version_format">Version %1$s</string>
 
