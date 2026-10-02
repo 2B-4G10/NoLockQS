@@ -2,7 +2,8 @@
 # Weekly check for the updates that follow new Android and toolchain releases:
 #  - the Gradle wrapper, with the distribution checksum pinned,
 #  - the Android Gradle Plugin, to its newest stable release,
-#  - compileSdk and targetSdk, to the newest stable Android SDK platform,
+#  - compileSdk and targetSdk, to the newest stable Android SDK platform (compileSdk to its newest
+#    minor version too),
 #  - libxposed (api and service, kept on one version), with targetApiVersion in module.prop when
 #    its API level changes.
 # Each update is applied on top of the previous ones and kept only if the debug and release builds
@@ -96,8 +97,12 @@ update_gradle() {
 
 set_catalog_version() { sed -i "s/^$1 = \".*\"$/$1 = \"$2\"/" "$CATALOG"; }
 
+# compileSdk takes the platform's major and minor version, written on one line as
+# "release(37) { minorApiLevel = 2 }"; targetSdk only has major versions.
 set_sdk() {
-  sed -i -e "s/version = release([0-9]*)/version = release($1)/" \
+  local version="release($1)"
+  if [ "$2" -gt 0 ]; then version+=" { minorApiLevel = $2 }"; fi
+  sed -i -e "s/version = release(.*/version = $version/" \
          -e "s/^\( *targetSdk = \)[0-9]*$/\1$1/" "$BUILD_FILE"
 }
 
@@ -135,18 +140,25 @@ fi
 
 # 3. Android SDK. Platforms are listed as "android-36" or, since API 37, with a minor version
 #    ("android-37.2"); betas, canaries and extension packages carry a suffix and are skipped.
-#    Newer command-line tools separate the package path with "/" instead of ";".
+#    Newer command-line tools separate the package path with "/" instead of ";". Levels are
+#    compared as "<major>.<minor>", so "android-36" counts as 36.0. Only a new major level changes
+#    targetSdk, and with it how the app behaves, so only that one needs a test on a device.
 compile_sdk=$(sed -n 's/.*version = release(\([0-9]*\)).*/\1/p' "$BUILD_FILE")
+compile_minor=$(sed -n 's/.*version = release([0-9]*) { minorApiLevel = \([0-9]*\) }.*/\1/p' "$BUILD_FILE")
 target_sdk=$(sed -n 's/^ *targetSdk = \([0-9]*\)$/\1/p' "$BUILD_FILE")
-latest_sdk=$({ "$SDKMANAGER" --list 2>/dev/null || true; } \
-  | sed -En 's/^ *platforms[;\/]android-([0-9]+)(\.[0-9]+)?[[:space:]].*/\1/p' | sort -n | tail -1)
-echo "Android SDK: compileSdk ${compile_sdk:-unknown}, targetSdk ${target_sdk:-unknown}, newest stable ${latest_sdk:-unknown}"
-if [ -z "$compile_sdk" ] || [ -z "$target_sdk" ]; then
+latest_level=$({ "$SDKMANAGER" --list 2>/dev/null || true; } \
+  | sed -En 's/^ *platforms[;\/]android-([0-9]+)(\.([0-9]+))?[[:space:]].*/\1.\3/p' \
+  | sed 's/\.$/.0/' | sort -V | tail -1)
+compile_level=${compile_sdk:+$compile_sdk.${compile_minor:-0}}
+latest_sdk=${latest_level%%.*}
+echo "Android SDK: compileSdk ${compile_level:-unknown}, targetSdk ${target_sdk:-unknown}, newest stable ${latest_level:-unknown}"
+if [ -z "$compile_level" ] || [ -z "$target_sdk" ]; then
   echo "::warning::Could not read compileSdk and targetSdk from $BUILD_FILE."
-elif [ -z "$latest_sdk" ] || [ "$latest_sdk" -lt "$compile_sdk" ]; then
-  echo "::warning::sdkmanager lists no stable platform at or above compileSdk $compile_sdk; the SDK package naming may have changed."
-elif [ "$latest_sdk" -gt "$compile_sdk" ]; then
-  if try_update "Android API" "$latest_sdk" "$compile_sdk" set_sdk "$latest_sdk"; then
+elif [ -z "$latest_level" ] || newer "$compile_level" "$latest_level"; then
+  echo "::warning::sdkmanager lists no stable platform at or above compileSdk $compile_level; the SDK package naming may have changed."
+elif newer "$latest_level" "$compile_level"; then
+  if try_update "Android API" "$latest_level" "$compile_level" set_sdk "$latest_sdk" "${latest_level#*.}" \
+    && [ "$latest_sdk" != "$compile_sdk" ]; then
     device_tests+=("Android API $latest_sdk")
   fi
 fi

@@ -14,7 +14,7 @@ val moduleProp = Properties().apply {
 android {
     namespace = "com.example.nolockqs"
     compileSdk {
-        version = release(37)
+        version = release(37) { minorApiLevel = 2 }
     }
 
     defaultConfig {
