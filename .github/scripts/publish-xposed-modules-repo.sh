@@ -64,18 +64,17 @@ if ! token_info=$(module_gh api --include user 2>&1); then
   exit 1
 fi
 header() { sed -n "s/^$1: *//Ip" <<< "$token_info" | tr -d '\r'; }
-if grep -qi '^x-oauth-scopes:' <<< "$token_info" \
-  && ! grep -Eq '(^|[ ,])(public_repo|repo)(,|$)' <<< "$(header x-oauth-scopes)"; then
+scopes=$(header x-oauth-scopes)
+expires=$(header github-authentication-token-expiration)
+if grep -qi '^x-oauth-scopes:' <<< "$token_info" && ! grep -Eq '(^|[ ,])(public_repo|repo)(,|$)' <<< "$scopes"; then
   echo "::error::The XPOSED_MODULES_REPO_TOKEN secret can't push to $MODULE_REPO, as it lacks the public_repo scope: $TOKEN_HELP."
   exit 1
 fi
-expires=$(header github-authentication-token-expiration)
+echo "The XPOSED_MODULES_REPO_TOKEN secret works (scopes: ${scopes:-not reported}; expires: ${expires:-never})."
 if [ -n "$expires" ] && expires_at=$(date -d "$expires" +%s 2>/dev/null); then
   days_left=$(( (expires_at - $(date +%s)) / 86400 ))
   if [ "$days_left" -lt 14 ]; then
     echo "::warning::The XPOSED_MODULES_REPO_TOKEN secret expires in $days_left days ($expires), and then $MODULE_REPO stops being updated: $TOKEN_HELP."
-  else
-    echo "The XPOSED_MODULES_REPO_TOKEN secret expires on $expires."
   fi
 fi
 
