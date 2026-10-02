@@ -1,5 +1,6 @@
 package com.example.nolockqs
 
+import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.SharedPreferences
@@ -91,6 +92,7 @@ class NoLockXposedModule : XposedModule() {
     @Volatile
     private var featureSettingsFailureLogged = false
 
+    @delegate:SuppressLint("PrivateApi") // Runs inside SystemUI and system_server, which may use hidden APIs.
     private val systemPropertiesGetBoolean: Method? by lazy {
         runCatching {
             Class.forName("android.os.SystemProperties")
@@ -179,6 +181,7 @@ class NoLockXposedModule : XposedModule() {
      * configuration. Insets are recomputed by the framework on every rotation, fold or display
      * change; the framework dimen and a density-scaled default are fallbacks.
      */
+    @SuppressLint("DiscouragedApi", "InternalInsetResource") // The dimen is only a fallback for missing insets.
     private fun statusBarDeadZone(view: View): Float {
         try {
             view.rootWindowInsets?.let { insets ->
@@ -379,6 +382,7 @@ class NoLockXposedModule : XposedModule() {
         }
     }
 
+    @SuppressLint("PrivateApi") // Runs inside SystemUI and system_server, which may use hidden APIs.
     private fun currentApplication(): Context? = runCatching {
         Class.forName("android.app.ActivityThread").getMethod("currentApplication").invoke(null) as? Context
     }.getOrNull()
