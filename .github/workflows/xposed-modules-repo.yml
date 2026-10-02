@@ -1,0 +1,61 @@
+name: Xposed Modules Repository
+
+# Keeps NoLockQS's repository in the Xposed Modules Repository
+# (github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS), which Vector's Store lists it from, in
+# step with this one. Android CI already does so on every build of main, with the release it
+# publishes; this workflow covers what that doesn't see:
+#  - a release published here by hand: the APK attached to it is published there too,
+#  - a weekly check, which catches up after a failed run and warns before the token expires,
+#  - a run from the Actions tab, for one release or else the latest.
+# Like the other workflows, it only uses shell steps and the tools preinstalled on the runner.
+
+on:
+  release:
+    types: [ published ]
+  schedule:
+    - cron: "41 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Tag of the release to publish there (empty for the latest release)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xposed-modules-repo
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Update the module repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+
+    steps:
+      # The files there always come from the default branch, whichever release is published.
+      - name: Checkout
+        run: |
+          git init -q .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth=1 origin "$SOURCE_BRANCH"
+          git checkout -q --detach FETCH_HEAD
+
+      - name: Set up JDK and Android SDK
+        run: .github/scripts/setup-toolchain.sh
+
+      # The token is the one Android CI uses; see .github/workflows/android.yml.
+      - name: Publish to the Xposed Modules Repository
+        env:
+          MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
+          XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: .github/scripts/publish-xposed-modules-repo.sh

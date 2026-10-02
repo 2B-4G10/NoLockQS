@@ -112,8 +112,10 @@ jobs:
 
       # Vector and LSPosed list modules from the Xposed Modules Repository (modules.lsposed.org), which
       # shows NoLockQS from github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS. Every build on
-      # main brings that repository's description up to date, and a version it doesn't have yet is
+      # main brings that repository up to date, and the version released here (now or before) is
       # released there with the same APK, tagged "<versionCode>-<versionName>" as its rules require.
+      # Releases published here by hand go there through .github/workflows/xposed-modules-repo.yml,
+      # which also checks on it every week.
       # It needs the XPOSED_MODULES_REPO_TOKEN secret: a personal access token (classic) of an admin
       # of that repository with the public_repo scope. Without it this step only warns; add it, then
       # run this workflow on main to catch up.
@@ -122,6 +124,8 @@ jobs:
         env:
           MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
           XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ env.TAG }}
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: .github/scripts/publish-xposed-modules-repo.sh
