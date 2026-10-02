@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.0
+
+- Vector's module list now shows what NoLockQS does under its name
+- Built with Kotlin 2.4.20 and against the newest Android 17 SDK (API 37.2)
+- Cleaner code: the legacy Xposed entries are gone from the manifest, as Vector reads the module from its libxposed files, and lint reports no warnings
+- Installs over v1.9 as an update
+
 ## v1.9
 
 - Every release is now also published to the Xposed Modules Repository ([modules.lsposed.org](https://modules.lsposed.org/module/io.github.i2B4G10.NoLockQS))
