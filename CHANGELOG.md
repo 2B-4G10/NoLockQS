@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.3
+
+- Fixed: Quick Settings / Control Center could still be pulled down on the lock screen on current Pixels. The block no longer depends on System UI's internal names: while the phone is locked, any downward pull on the lock screen is stopped at the source, from the top, the middle, or with two fingers. The lock check was also made reliable inside System UI, and the module now logs what it hooks and what it sees, so a single log pinpoints anything left
+
 ## v2.2
 
 - Fixed: on the scene-container System UI (Android 16+ "Flexiglass", the current Pixel), the lock-screen pull-down and the two-finger Quick Settings pull opened the shade and Control Center again, because they now settle through a new path the previous build did not cover. That path is refused while locked, so the shade and Quick Settings stay out of reach on the lock screen

@@ -4,13 +4,16 @@ import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowInsets
+import kotlin.math.abs
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedInterface.Hooker
@@ -29,13 +32,14 @@ import java.util.WeakHashMap
  * NoLockQS Xposed module (libxposed API 101+).
  *
  * While the device is locked it keeps these out of reach:
- *  - Quick Settings: in SystemUI, any gesture that starts in the status-bar strip of the shade
- *    window is consumed, so the shade can never start to expand. Pulling down anywhere else on the
- *    lock screen, which opens the "locked shade" with its Quick Settings tiles, is refused where
- *    the lock screen starts it, and should the locked shade open anyway (on any build, through any
- *    path), it is collapsed at once. On the scene-container SystemUI (Android 16+ "Flexiglass",
- *    the current Pixel path), the shade and Quick Settings are a scene or an overlay reached
- *    through SceneInteractor, so that transition is vetoed while locked.
+ *  - Quick Settings: in SystemUI, while the keyguard is locked any downward pull on the shade /
+ *    keyguard root view is consumed at `dispatchTouchEvent`, so the shade can never start to
+ *    expand, wherever the pull starts and with one finger or two. This layer needs no internal
+ *    class or method names beyond the root view, so it holds whatever SystemUI does above it. On
+ *    top of it the known transitions are also refused directly: the legacy locked-shade entry
+ *    points, and on the scene-container SystemUI (Android 16+ "Flexiglass", the current Pixel
+ *    path) the change to the Shade / Quick Settings scene or overlay through SceneInteractor; and
+ *    should the shade open anyway, the legacy path collapses it at once.
  *  - The power menu: in system_server, every trigger (power key, key chords, accessibility) is
  *    refused before SystemUI or the legacy dialog is asked to show it. SystemUI refuses it too,
  *    as a fallback for when the System Framework scope is not enabled.
@@ -130,9 +134,16 @@ class NoLockXposedModule : XposedModule() {
     @Volatile
     private var collapsePending = false
 
-    /** Shade roots whose current gesture began in the dead-zone; the rest of it is consumed too. */
+    /** Shade roots whose current gesture is being consumed; the rest of it is consumed too. */
     private val blockedGestures: MutableSet<View> =
         Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap<View, Boolean>()))
+
+    /** Down position [rawX, rawY] of a gesture on a shade root that is being watched for a pull. */
+    private val gestureAnchor: MutableMap<View, FloatArray> =
+        Collections.synchronizedMap(WeakHashMap<View, FloatArray>())
+
+    @Volatile
+    private var lastTouchDiagLog = 0L
 
     /** The app's feature switches as the framework shares them; read on first use, see [isFeatureEnabled]. */
     @Volatile
@@ -152,6 +163,7 @@ class NoLockXposedModule : XposedModule() {
     override fun onPackageReady(param: PackageReadyParam) {
         when (param.packageName) {
             in SYSTEM_UI_PACKAGES -> {
+                logEnvironment(param.packageName, param.classLoader)
                 installShadeTouchHooks(param.classLoader)
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Lock screen shade scene")
                 installHooks(param.classLoader, LOCKED_SHADE_ENTRY, lockedShadeEntryHooker, "Lock screen pull-down")
@@ -197,6 +209,15 @@ class NoLockXposedModule : XposedModule() {
         report("Quick Settings dead-zone", targets.count { hookSafely(it, shadeTouchHooker) })
     }
 
+    /**
+     * The blunt, class-name-independent layer and the one that should hold whatever SystemUI does
+     * internally. The shade/keyguard root view sees every touch on the lock screen, so while the
+     * keyguard is locked any downward pull on it, the gesture that expands the shade or Quick
+     * Settings from the top strip, mid-screen or with two fingers, is consumed before the scene
+     * framework can act on it. Taps, the swipe-up to unlock and sideways swipes are left alone, and
+     * nothing is touched once unlocked. The lock state is read from the view's own context, which
+     * is always available here, rather than the process-wide application that can come back null.
+     */
     private val shadeTouchHooker = object : Hooker {
         override fun intercept(chain: Chain): Any? {
             val view = chain.thisObject as? View ?: return chain.proceed()
@@ -204,23 +225,63 @@ class NoLockXposedModule : XposedModule() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     blockedGestures.remove(view)
-                    if (isShadeRoot(chain, view) && shouldBlockShadeTouch(view, event)) {
-                        blockedGestures.add(view)
-                        log(Log.DEBUG, TAG, "Blocked a Quick Settings pull-down (y=${event.rawY}).")
-                        return true
+                    gestureAnchor.remove(view)
+                    if (isShadeRoot(chain, view) && isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS)) {
+                        val locked = isKeyguardLocked(view.context)
+                        logTouchDiag(view, event, locked)
+                        if (locked) {
+                            if (event.rawY <= statusBarDeadZone(view)) {
+                                blockedGestures.add(view)
+                                log(Log.DEBUG, TAG, "Blocked a lock-screen pull-down in the top strip (y=${event.rawY}).")
+                                return true
+                            }
+                            gestureAnchor[view] = floatArrayOf(event.rawX, event.rawY)
+                        }
                     }
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (blockedGestures.remove(view)) return true
+                MotionEvent.ACTION_MOVE -> {
+                    if (view in blockedGestures) return true
+                    val anchor = gestureAnchor[view]
+                    if (anchor != null) {
+                        val dx = event.rawX - anchor[0]
+                        val dy = event.rawY - anchor[1]
+                        val slop = ViewConfiguration.get(view.context).scaledTouchSlop
+                        if (dy > slop && dy >= abs(dx)) {
+                            gestureAnchor.remove(view)
+                            blockedGestures.add(view)
+                            log(Log.DEBUG, TAG, "Blocked a lock-screen shade pull (downward drag, dy=$dy).")
+                            return true
+                        }
+                        if (dy < -slop || abs(dx) > slop) {
+                            // Swipe up to unlock, or a sideways gesture: not a shade pull, let it run.
+                            gestureAnchor.remove(view)
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    gestureAnchor.remove(view)
+                    if (blockedGestures.remove(view)) return true
+                }
                 else -> if (view in blockedGestures) return true
             }
             return chain.proceed()
         }
     }
 
-    private fun shouldBlockShadeTouch(view: View, event: MotionEvent): Boolean =
-        event.rawY <= statusBarDeadZone(view) &&
-            isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) &&
-            isKeyguardLocked(view.context)
+    /** At most once a second, records whether a lock-screen shade-root touch is seen as locked. */
+    private fun logTouchDiag(view: View, event: MotionEvent, locked: Boolean) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastTouchDiagLog < 1000L) return
+        lastTouchDiagLog = now
+        log(Log.DEBUG, TAG, "Shade-root touch on ${view.javaClass.simpleName}: keyguardLocked=$locked, y=${event.rawY}.")
+    }
+
+    /** One line at install so a single log shows the device, build and whether the scene container is present. */
+    private fun logEnvironment(packageName: String, classLoader: ClassLoader) {
+        val sceneContainer = SCENE_CONTAINER_ENTRY.keys.any { loadClassOrNull(classLoader, it) != null } ||
+            SHADE_ROOT_CLASSES.any { it.contains("scene", ignoreCase = true) && loadClassOrNull(classLoader, it) != null }
+        log(Log.INFO, TAG, "Hooking $packageName on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}); scene container present=$sceneContainer.")
+    }
 
     /** True unless the hook sits on [ViewGroup] and [view] is not one of the shade roots. */
     private fun isShadeRoot(chain: Chain, view: View): Boolean {
@@ -270,10 +331,10 @@ class NoLockXposedModule : XposedModule() {
         override fun intercept(chain: Chain): Any? {
             val event = chain.args.firstOrNull() as? MotionEvent
             val blocked = if (event != null && chain.executable.name == "onInterceptTouchEvent") {
-                if (event.actionMasked == MotionEvent.ACTION_DOWN) dragDownBlocked = shouldBlockLockedShade()
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) dragDownBlocked = shouldBlockLockedShade(chain.thisObject)
                 dragDownBlocked
             } else {
-                shouldBlockLockedShade()
+                shouldBlockLockedShade(chain.thisObject)
             }
             return if (blocked) blockedResult(chain.executable) else chain.proceed()
         }
@@ -292,7 +353,7 @@ class NoLockXposedModule : XposedModule() {
      */
     private val sceneContainerEntryHooker = object : Hooker {
         override fun intercept(chain: Chain): Any? {
-            if (isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(currentApplication())) {
+            if (isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(contextOf(chain.thisObject))) {
                 // changeScene/snapToScene/showOverlay take the destination first; replaceOverlay(from, to).
                 val destination = if (chain.executable.name == "replaceOverlay") chain.args.getOrNull(1) else chain.args.firstOrNull()
                 if (destination != null && isShadeOrQuickSettingsKey(destination)) {
@@ -321,8 +382,8 @@ class NoLockXposedModule : XposedModule() {
         return "shade" in name || "quicksettings" in name
     }
 
-    private fun shouldBlockLockedShade(): Boolean =
-        isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(currentApplication())
+    private fun shouldBlockLockedShade(target: Any?): Boolean =
+        isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(contextOf(target))
 
     /** Collapses the shade as soon as it opens over the locked lock screen, however it got there. */
     private val statusBarStateHooker = object : Hooker {
