@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.1
+
+- Fixed: pulling down from the middle of the lock screen opened the shade with Quick Settings. It is now blocked anywhere on the lock screen, and if the shade still opens over the lock screen some other way (a two-finger pull, a tapped notification), it closes at once
+
 ## v2.0
 
 - Vector's module list now shows what NoLockQS does under its name
