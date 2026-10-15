@@ -176,9 +176,9 @@ elif newer "$latest_level" "$compile_level"; then
   fi
 fi
 
-# 4. The app's libraries and the toolchain plugin. Dependabot would propose these as pull requests,
-#    but pull requests are turned off in this repository, so they are updated here as well (once one
-#    is on main, Dependabot has nothing left to propose).
+# 4. The app's libraries and the toolchain plugin. Dependabot proposes these too, as pull requests
+#    that Android CI puts on main once they build; this keeps them current even if pull requests are
+#    turned off. Whichever lands an update first, the other finds nothing left to do.
 update_catalog "AndroidX Core" coreKtx "$GOOGLE/androidx/core/core-ktx/maven-metadata.xml"
 update_catalog "AndroidX AppCompat" appcompat "$GOOGLE/androidx/appcompat/appcompat/maven-metadata.xml"
 update_catalog "AndroidX ConstraintLayout" constraintlayout "$GOOGLE/androidx/constraintlayout/constraintlayout/maven-metadata.xml"
