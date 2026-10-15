@@ -48,4 +48,7 @@ for attempt in 1 2 3; do
 done
 
 echo "$result"
+# The push was made with the workflow's token, which starts no workflow, so this one is started on
+# main by hand: it builds the update there and brings the Xposed Modules Repository up to date.
+gh workflow run android.yml --ref main || echo "::warning::Could not start Android CI on main."
 gh pr close "$PR_NUMBER" --comment "$result" --delete-branch

@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # Weekly check for the updates that follow new Android and toolchain releases:
 #  - the Gradle wrapper, with the distribution checksum pinned,
-#  - the Android Gradle Plugin, to its newest stable release,
+#  - the Android Gradle Plugin and Kotlin, to their newest stable releases,
 #  - compileSdk and targetSdk, to the newest stable Android SDK platform (compileSdk to its newest
 #    minor version too),
+#  - the app's AndroidX and Material libraries and the Foojay toolchains plugin,
 #  - libxposed (api and service, kept on one version), with targetApiVersion in module.prop when
 #    its API level changes.
 # Each update is applied on top of the previous ones and kept only if the debug and release builds
-# still pass; the ones that build are pushed to main together. An update that can't be applied is
-# left out and reported as a GitHub issue, and so is a new Android or libxposed API level, whose
-# hooks can only be tested on a device.
+# still pass; the ones that build are pushed to main together, and Android CI is started on it. An
+# update that can't be applied is left out and reported as a GitHub issue, and so is a new Android
+# or libxposed API level, whose hooks can only be tested on a device.
 #
 # Expects: a checkout of main with push access, SDKMANAGER (from setup-toolchain.sh), gh with
-# GH_TOKEN and GH_REPO, and RUNNER_TEMP.
+# GH_TOKEN and GH_REPO (allowed to start workflows), and RUNNER_TEMP.
 set -euo pipefail
 
 BUILD_FILE=app/build.gradle.kts
 WRAPPER=gradle/wrapper/gradle-wrapper.properties
 CATALOG=gradle/libs.versions.toml
+SETTINGS=settings.gradle.kts
 MODULE_PROP=app/src/main/resources/META-INF/xposed/module.prop
 updated=()       # "<name> <version>" of each update that builds
 summary=()       # the same, with the version it replaces
@@ -128,15 +130,26 @@ elif newer "$gradle_latest" "$gradle_now"; then
   fi
 fi
 
-# 2. Android Gradle Plugin. Before the SDK, as a new SDK level can need it.
-agp_now=$(sed -n 's/^agp = "\(.*\)"$/\1/p' "$CATALOG")
-agp_latest=$(stable_versions https://dl.google.com/android/maven2/com/android/tools/build/gradle/maven-metadata.xml | newest)
-echo "Android Gradle Plugin: using $agp_now, newest stable ${agp_latest:-unknown}"
-if [ -z "$agp_latest" ]; then
-  echo "::warning::Could not read the Android Gradle Plugin versions from Google's Maven repository."
-elif newer "$agp_latest" "$agp_now"; then
-  try_update "Android Gradle Plugin" "$agp_latest" "$agp_now" set_catalog_version agp "$agp_latest" || true
-fi
+# Updates the catalog version <key> of <name> to the newest stable release in the Maven metadata at
+# <url>.
+update_catalog() {
+  local name=$1 key=$2 url=$3 now latest
+  now=$(sed -n "s/^$key = \"\(.*\)\"$/\1/p" "$CATALOG")
+  latest=$(stable_versions "$url" | newest)
+  echo "$name: using $now, newest stable ${latest:-unknown}"
+  if [ -z "$latest" ]; then
+    echo "::warning::Could not read the $name versions from $url."
+  elif newer "$latest" "$now"; then
+    try_update "$name" "$latest" "$now" set_catalog_version "$key" "$latest" || true
+  fi
+}
+
+GOOGLE=https://dl.google.com/android/maven2
+CENTRAL=https://repo1.maven.org/maven2
+
+# 2. Android Gradle Plugin and Kotlin. Before the SDK, as a new SDK level can need them.
+update_catalog "Android Gradle Plugin" agp "$GOOGLE/com/android/tools/build/gradle/maven-metadata.xml"
+update_catalog Kotlin kotlin "$CENTRAL/org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml"
 
 # 3. Android SDK. Platforms are listed as "android-36" or, since API 37, with a minor version
 #    ("android-37.2"); betas, canaries and extension packages carry a suffix and are skipped.
@@ -163,7 +176,22 @@ elif newer "$latest_level" "$compile_level"; then
   fi
 fi
 
-# 4. libxposed. Its api (for the hooks) and service (for the app) share one version, so only a
+# 4. The app's libraries and the toolchain plugin. Dependabot would propose these as pull requests,
+#    but pull requests are turned off in this repository, so they are updated here as well (once one
+#    is on main, Dependabot has nothing left to propose).
+update_catalog "AndroidX Core" coreKtx "$GOOGLE/androidx/core/core-ktx/maven-metadata.xml"
+update_catalog "AndroidX AppCompat" appcompat "$GOOGLE/androidx/appcompat/appcompat/maven-metadata.xml"
+update_catalog "AndroidX ConstraintLayout" constraintlayout "$GOOGLE/androidx/constraintlayout/constraintlayout/maven-metadata.xml"
+update_catalog "Material Components" material "$GOOGLE/com/google/android/material/material/maven-metadata.xml"
+foojay_now=$(sed -n 's/.*id("org.gradle.toolchains.foojay-resolver-convention") version "\(.*\)".*/\1/p' "$SETTINGS")
+foojay_latest=$(stable_versions https://plugins.gradle.org/m2/org/gradle/toolchains/foojay-resolver-convention/org.gradle.toolchains.foojay-resolver-convention.gradle.plugin/maven-metadata.xml | newest)
+echo "Foojay toolchains plugin: using $foojay_now, newest stable ${foojay_latest:-unknown}"
+if [ -n "$foojay_latest" ] && newer "$foojay_latest" "$foojay_now"; then
+  try_update "Foojay toolchains plugin" "$foojay_latest" "$foojay_now" \
+    sed -i "s/\(id(\"org.gradle.toolchains.foojay-resolver-convention\") version \"\)[^\"]*/\1$foojay_latest/" "$SETTINGS" || true
+fi
+
+# 5. libxposed. Its api (for the hooks) and service (for the app) share one version, so only a
 #    version published for both is used.
 xposed_now=$(sed -n 's/^libxposed = "\(.*\)"$/\1/p' "$CATALOG")
 xposed_repo=https://repo1.maven.org/maven2/io/github/libxposed
@@ -187,6 +215,9 @@ $(printf -- '- %s\n' "${summary[@]}")"
   git pull -q --rebase origin main
   git push -q origin HEAD:main
   echo "Pushed: $title"
+  # A push made with the workflow's token starts no workflow, so Android CI is started by hand: it
+  # builds what is now on main and brings the Xposed Modules Repository up to date.
+  gh workflow run android.yml --ref main || echo "::warning::Could not start Android CI on main."
 fi
 
 if [ ${#device_tests[@]} -gt 0 ]; then
@@ -204,9 +235,10 @@ if [ ${#device_tests[@]} -gt 0 ]; then
 Then bump \`version\` and \`versionCode\` in \`$MODULE_PROP\` to release."
 fi
 
+# An update that was left out is already reported in an issue, and the check tries it again next
+# week, so it doesn't fail the run.
 if [ ${#failed[@]} -gt 0 ]; then
-  echo "Left out: $(join_and "${failed[@]}")"
-  exit 1
+  echo "Left out, see the issues: $(join_and "${failed[@]}")"
 fi
 if [ ${#updated[@]} -eq 0 ]; then
   echo "Everything is up to date."

@@ -1,10 +1,10 @@
 name: Update check
 
-# Weekly check for the updates that follow new Android and toolchain releases: the Gradle
-# wrapper, the Android Gradle Plugin, the Android SDK level and libxposed (Dependabot covers the
-# other Gradle dependencies). Each update is kept only if the build passes; those are pushed to
-# main, and anything that needs a person is reported as an issue.
-# Like the build, it only uses tools preinstalled on GitHub's Ubuntu runners.
+# Weekly check for updates: the Gradle wrapper, the Android Gradle Plugin, Kotlin, the Android SDK
+# level, the app's libraries and libxposed. Each update is kept only if the build passes; those are
+# pushed to main and Android CI is started on them, and anything that needs a person is reported
+# as an issue. Like the build, it only uses tools preinstalled on GitHub's Ubuntu runners, on a
+# fixed Ubuntu release so that a new runner image can't change the build unannounced.
 
 on:
   schedule:
@@ -14,6 +14,8 @@ on:
 permissions:
   contents: write
   issues: write
+  # To start Android CI on what it pushes.
+  actions: write
 
 concurrency:
   group: update-check
@@ -22,7 +24,7 @@ concurrency:
 jobs:
   check:
     name: Check for updates
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

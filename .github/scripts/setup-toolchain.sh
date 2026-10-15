@@ -14,6 +14,6 @@ fi
 
 sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' 2>/dev/null | sort -V | tail -1 || true)
 if [ -n "$sdkmanager" ]; then
-  yes | "$sdkmanager" --licenses > /dev/null || true
+  yes 2> /dev/null | "$sdkmanager" --licenses > /dev/null || true
   echo "SDKMANAGER=$sdkmanager" >> "$GITHUB_ENV"
 fi

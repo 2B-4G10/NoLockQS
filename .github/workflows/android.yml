@@ -2,6 +2,7 @@ name: Android CI
 
 # This repository only allows actions owned by 2B-4G10, so every step is a plain shell step
 # using the tools preinstalled on GitHub's Ubuntu runners: git, the JDKs, the Android SDK and gh.
+# The runners are a fixed Ubuntu release, so that a new image can't change the build unannounced.
 
 on:
   push:
@@ -21,10 +22,12 @@ concurrency:
 jobs:
   build:
     name: Build and release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       pull-requests: write
+      # To start this workflow on the Dependabot update it puts on main.
+      actions: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -139,7 +142,7 @@ jobs:
     name: Publish to the Xposed Modules Repository
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
