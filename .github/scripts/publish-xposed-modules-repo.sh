@@ -204,12 +204,14 @@ fi
 
 # Vector only updates an app with an APK signed by the same key, so a release signed with another
 # one (a debug build, say) would strand everyone who installed it from there.
+# apksigner names the first signer "Signer #1" up to build-tools 36 and "V2 Signer:" since 37.
 signer() {
-  PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$PATH" "$apksigner" verify --print-certs "$1" 2>/dev/null \
-    | sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
+  PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$PATH" "$apksigner" verify --print-certs "$1" 2>&1 \
+    | awk -F 'certificate SHA-256 digest: ' 'NF > 1 && !found { print $2; found = 1 }'
 }
 if ! apk_signer=$(signer "$apk") || [ -z "$apk_signer" ]; then
-  echo "::error::${apk##*/} is not validly signed, so Vector could not install it."
+  echo "::error::${apk##*/} is not validly signed, so Vector could not install it. apksigner ($apksigner) says:"
+  PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$PATH" "$apksigner" verify --print-certs "$apk" 2>&1 | grep -v '^WARNING' | head -20 || true
   exit 1
 fi
 newest=$(module_gh api "repos/$MODULE_REPO/releases?per_page=100" --jq '
