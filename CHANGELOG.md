@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2
+
+- Fixed: on the scene-container System UI (Android 16+ "Flexiglass", the current Pixel), the lock-screen pull-down and the two-finger Quick Settings pull opened the shade and Control Center again, because they now settle through a new path the previous build did not cover. That path is refused while locked, so the shade and Quick Settings stay out of reach on the lock screen
+
 ## v2.1
 
 - Fixed: pulling down from the middle of the lock screen opened the shade with Quick Settings. It is now blocked anywhere on the lock screen, and if the shade still opens over the lock screen some other way (a two-finger pull, a tapped notification), it closes at once
