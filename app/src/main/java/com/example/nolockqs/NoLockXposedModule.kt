@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -28,7 +30,10 @@ import java.util.WeakHashMap
  *
  * While the device is locked it keeps these out of reach:
  *  - Quick Settings: in SystemUI, any gesture that starts in the status-bar strip of the shade
- *    window is consumed, so the shade can never start to expand.
+ *    window is consumed, so the shade can never start to expand. Pulling down anywhere else on the
+ *    lock screen, which opens the "locked shade" with its Quick Settings tiles, is refused where
+ *    the lock screen starts it, and should the locked shade open anyway (on any build, through any
+ *    path), it is collapsed at once.
  *  - The power menu: in system_server, every trigger (power key, key chords, accessibility) is
  *    refused before SystemUI or the legacy dialog is asked to show it. SystemUI refuses it too,
  *    as a fallback for when the System Framework scope is not enabled.
@@ -79,7 +84,37 @@ class NoLockXposedModule : XposedModule() {
 
         /** SystemUI's callback interface back to system_server for the power menu. */
         const val GLOBAL_ACTIONS_MANAGER = "GlobalActionsManager"
+
+        /**
+         * What starts the locked shade from the lock screen in the legacy shade: the drag-down
+         * gesture anywhere on it, going to the locked shade (also from a tapped notification), and
+         * the two-finger pull that opens Quick Settings directly.
+         */
+        val LOCKED_SHADE_ENTRY = mapOf(
+            "com.android.systemui.statusbar.DragDownHelper" to setOf("onInterceptTouchEvent"),
+            "com.android.systemui.statusbar.LockscreenShadeTransitionController" to setOf("goToLockedShade"),
+            "com.android.systemui.shade.QuickSettingsControllerImpl" to setOf("isOpenQsEvent"),
+            "com.android.systemui.shade.QuickSettingsController" to setOf("isOpenQsEvent"),
+            "com.android.systemui.shade.NotificationPanelViewController" to setOf("isOpenQsEvent"),
+        )
+
+        /**
+         * Where the status bar state changes, in the legacy shade and in the scene container alike.
+         * Whatever opens the shade over the lock screen, the state becomes SHADE_LOCKED.
+         */
+        val STATUS_BAR_STATE = mapOf(
+            "com.android.systemui.statusbar.StatusBarStateControllerImpl" to
+                setOf("setState", "updateStateAndNotifyListeners", "onStatusBarStateChanged"),
+        )
+
+        /** StatusBarState.SHADE_LOCKED: the shade, with Quick Settings, open over the lock screen. */
+        const val SHADE_LOCKED = 2
     }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile
+    private var collapsePending = false
 
     /** Shade roots whose current gesture began in the dead-zone; the rest of it is consumed too. */
     private val blockedGestures: MutableSet<View> =
@@ -104,6 +139,8 @@ class NoLockXposedModule : XposedModule() {
         when (param.packageName) {
             in SYSTEM_UI_PACKAGES -> {
                 installShadeTouchHooks(param.classLoader)
+                installHooks(param.classLoader, LOCKED_SHADE_ENTRY, lockedShadeEntryHooker, "Lock screen pull-down")
+                installHooks(param.classLoader, STATUS_BAR_STATE, statusBarStateHooker, "Locked shade")
                 installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)")
             }
             moduleApplicationInfo.packageName -> installModuleStatusHook(param.classLoader)
@@ -206,6 +243,66 @@ class NoLockXposedModule : XposedModule() {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Locked shade: pulling down anywhere on the lock screen
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Refuses to start the locked shade: no drag-down, no going to it, no two-finger pull. The
+     * drag-down helper sees every touch on the lock screen, so it is decided once per gesture, when
+     * the finger goes down.
+     */
+    private val lockedShadeEntryHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val event = chain.args.firstOrNull() as? MotionEvent
+            val blocked = if (event != null && chain.executable.name == "onInterceptTouchEvent") {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) dragDownBlocked = shouldBlockLockedShade()
+                dragDownBlocked
+            } else {
+                shouldBlockLockedShade()
+            }
+            return if (blocked) blockedResult(chain.executable) else chain.proceed()
+        }
+    }
+
+    @Volatile
+    private var dragDownBlocked = false
+
+    private fun shouldBlockLockedShade(): Boolean =
+        isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(currentApplication())
+
+    /** Collapses the shade as soon as it opens over the locked lock screen, however it got there. */
+    private val statusBarStateHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val result = chain.proceed()
+            val state = runCatching { chain.thisObject?.javaClass?.getMethod("getState")?.invoke(chain.thisObject) as? Int }.getOrNull()
+            if (state == SHADE_LOCKED && isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS)) {
+                collapseLockedShade()
+            }
+            return result
+        }
+    }
+
+    /**
+     * Asks the status bar service to collapse the shade, which SystemUI then animates back to the
+     * lock screen. Posted, as the state change that triggers it is still being dispatched.
+     */
+    @SuppressLint("PrivateApi") // Runs inside SystemUI, which may use hidden APIs.
+    private fun collapseLockedShade() {
+        if (collapsePending) return
+        collapsePending = true
+        mainHandler.post {
+            collapsePending = false
+            val context = currentApplication() ?: return@post
+            if (!isKeyguardLocked(context)) return@post
+            runCatching {
+                val statusBar = context.getSystemService("statusbar") ?: return@runCatching
+                statusBar.javaClass.getMethod("collapsePanels").invoke(statusBar)
+                log(Log.INFO, TAG, "Collapsed the shade opened over the lock screen.")
+            }.onFailure { log(Log.WARN, TAG, "Could not collapse the locked shade", it) }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Power menu
     // ---------------------------------------------------------------------------------------
 
@@ -264,7 +361,7 @@ class NoLockXposedModule : XposedModule() {
         return null
     }
 
-    /** A harmless value for a skipped call; today every entry point is `void`. */
+    /** A harmless value for a skipped call: false for a check, nothing for an action. */
     private fun blockedResult(executable: Executable): Any? = when ((executable as? Method)?.returnType) {
         Boolean::class.javaPrimitiveType -> false
         Int::class.javaPrimitiveType -> 0
@@ -316,6 +413,8 @@ class NoLockXposedModule : XposedModule() {
         val name = executable.name
         return when {
             name == "dispatchTouchEvent" -> shadeTouchHooker
+            LOCKED_SHADE_ENTRY[owner]?.contains(name) == true -> lockedShadeEntryHooker
+            STATUS_BAR_STATE[owner]?.contains(name) == true -> statusBarStateHooker
             name == "isModuleActive" -> moduleActiveHooker
             SYSTEM_SERVER_POWER_MENU[owner]?.contains(name) == true -> systemServerPowerMenuHooker
             SYSTEM_UI_POWER_MENU[owner]?.contains(name) == true -> systemUiPowerMenuHooker
