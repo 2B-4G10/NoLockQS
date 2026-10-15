@@ -33,7 +33,9 @@ import java.util.WeakHashMap
  *    window is consumed, so the shade can never start to expand. Pulling down anywhere else on the
  *    lock screen, which opens the "locked shade" with its Quick Settings tiles, is refused where
  *    the lock screen starts it, and should the locked shade open anyway (on any build, through any
- *    path), it is collapsed at once.
+ *    path), it is collapsed at once. On the scene-container SystemUI (Android 16+ "Flexiglass",
+ *    the current Pixel path), the shade and Quick Settings are a scene or an overlay reached
+ *    through SceneInteractor, so that transition is vetoed while locked.
  *  - The power menu: in system_server, every trigger (power key, key chords, accessibility) is
  *    refused before SystemUI or the legacy dialog is asked to show it. SystemUI refuses it too,
  *    as a fallback for when the System Framework scope is not enabled.
@@ -99,6 +101,18 @@ class NoLockXposedModule : XposedModule() {
         )
 
         /**
+         * Scene-container entry points (Android 16+ "Flexiglass" SystemUI). Opening the shade or
+         * Quick Settings over the lock screen settles through [SceneInteractor] as a change to the
+         * Shade / Quick Settings scene, or as a Notifications-/Quick-Settings-shade overlay. The
+         * legacy [LOCKED_SHADE_ENTRY] classes are not on this path, so this is the layer that holds
+         * on current Pixels.
+         */
+        val SCENE_CONTAINER_ENTRY = mapOf(
+            "com.android.systemui.scene.domain.interactor.SceneInteractor" to
+                setOf("changeScene", "snapToScene", "showOverlay", "replaceOverlay"),
+        )
+
+        /**
          * Where the status bar state changes, in the legacy shade and in the scene container alike.
          * Whatever opens the shade over the lock screen, the state becomes SHADE_LOCKED.
          */
@@ -139,6 +153,7 @@ class NoLockXposedModule : XposedModule() {
         when (param.packageName) {
             in SYSTEM_UI_PACKAGES -> {
                 installShadeTouchHooks(param.classLoader)
+                installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Lock screen shade scene")
                 installHooks(param.classLoader, LOCKED_SHADE_ENTRY, lockedShadeEntryHooker, "Lock screen pull-down")
                 installHooks(param.classLoader, STATUS_BAR_STATE, statusBarStateHooker, "Locked shade")
                 installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)")
@@ -266,6 +281,45 @@ class NoLockXposedModule : XposedModule() {
 
     @Volatile
     private var dragDownBlocked = false
+
+    /**
+     * Refuses to open the shade or Quick Settings over the lock screen in the scene container
+     * (Android 16+). Every such gesture, the two-finger pull and a tapped notification included,
+     * settles through [SceneInteractor] as a change to the Shade / Quick Settings scene or as a
+     * Notifications-/Quick-Settings-shade overlay; while the keyguard is locked those destinations
+     * are vetoed and the lock screen scene stays put. Leaving the shade (going to Lockscreen, Gone,
+     * Bouncer and the rest) is untouched.
+     */
+    private val sceneContainerEntryHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            if (isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(currentApplication())) {
+                // changeScene/snapToScene/showOverlay take the destination first; replaceOverlay(from, to).
+                val destination = if (chain.executable.name == "replaceOverlay") chain.args.getOrNull(1) else chain.args.firstOrNull()
+                if (destination != null && isShadeOrQuickSettingsKey(destination)) {
+                    log(Log.INFO, TAG, "Blocked the '${sceneKeyName(destination)}' scene over the lock screen (${chain.executable.name}).")
+                    return blockedResult(chain.executable)
+                }
+            }
+            return chain.proceed()
+        }
+    }
+
+    /** A scene or overlay key's debug name (SceneTransitionLayout `Key.debugName`), else its toString. */
+    private fun sceneKeyName(key: Any): String =
+        runCatching { key.javaClass.getMethod("getDebugName").invoke(key) as? String }.getOrNull()
+            ?: runCatching { key.javaClass.getField("debugName").get(key) as? String }.getOrNull()
+            ?: key.toString()
+
+    /**
+     * Whether a scene or overlay key is the shade or Quick Settings, matched on its debug name so it
+     * holds across builds and the single/dual-shade split: Scenes.Shade, Scenes.QuickSettings,
+     * Overlays.NotificationsShade and Overlays.QuickSettingsShade all match, while Lockscreen,
+     * Bouncer, Gone, Communal and Dream are left alone.
+     */
+    private fun isShadeOrQuickSettingsKey(key: Any): Boolean {
+        val name = sceneKeyName(key).lowercase().filter(Char::isLetterOrDigit)
+        return "shade" in name || "quicksettings" in name
+    }
 
     private fun shouldBlockLockedShade(): Boolean =
         isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(currentApplication())
@@ -413,6 +467,7 @@ class NoLockXposedModule : XposedModule() {
         val name = executable.name
         return when {
             name == "dispatchTouchEvent" -> shadeTouchHooker
+            SCENE_CONTAINER_ENTRY[owner]?.contains(name) == true -> sceneContainerEntryHooker
             LOCKED_SHADE_ENTRY[owner]?.contains(name) == true -> lockedShadeEntryHooker
             STATUS_BAR_STATE[owner]?.contains(name) == true -> statusBarStateHooker
             name == "isModuleActive" -> moduleActiveHooker
