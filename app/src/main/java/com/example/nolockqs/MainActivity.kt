@@ -22,6 +22,14 @@ import com.google.android.material.color.DynamicColors
 
 class MainActivity : AppCompatActivity() {
 
+    private companion object {
+        /** System UI's package on Pixels (AOSP's and Google's names), as Vector lists it in the scope. */
+        val SYSTEM_UI_PACKAGES = listOf("com.android.systemui", "com.google.android.systemui")
+
+        /** System Framework (system_server), as Vector lists it in the scope. */
+        const val SYSTEM_FRAMEWORK = "system"
+    }
+
     /** A protection's box on this screen and the switch in [FeatureSettings] it controls. */
     private class Feature(
         val key: String,
@@ -55,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName
         binding.version.text = getString(R.string.version_format, versionName.orEmpty())
         binding.patreonButton.setOnClickListener { openLink(getString(R.string.patreon_url)) }
+        binding.statusCard.setOnClickListener { requestMissingScope() }
 
         features = listOf(
             Feature(
@@ -144,8 +153,40 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setStateDescription(root, getString(if (on) R.string.feature_state_on else R.string.feature_state_off))
     }
 
+    /**
+     * The scope entries the hooks need that the framework reports as missing: System UI for Quick
+     * Settings, System Framework for the power menu. Empty while the framework isn't connected.
+     */
+    private fun missingScope(): List<String> {
+        val scope = app.scope ?: return emptyList()
+        return buildList {
+            if (SYSTEM_UI_PACKAGES.none { it in scope }) add(SYSTEM_UI_PACKAGES.first())
+            if (SYSTEM_FRAMEWORK !in scope) add(SYSTEM_FRAMEWORK)
+        }
+    }
+
+    private fun scopeLabel(packageName: String): String =
+        getString(if (packageName == SYSTEM_FRAMEWORK) R.string.scope_system_framework else R.string.scope_system_ui)
+
+    /** Asks the framework to add what the scope is missing; it shows the user a confirmation. */
+    private fun requestMissingScope() {
+        val missing = missingScope().ifEmpty { return }
+        Toast.makeText(this, R.string.scope_request_sent, Toast.LENGTH_LONG).show()
+        app.requestScope(missing) { failure ->
+            if (failure != null) Toast.makeText(this, R.string.scope_request_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun updateModuleStatus() {
-        val active = isModuleActive()
+        // The hook marks this screen active; failing that (the app itself not in scope), a framework
+        // connection means NoLockQS is enabled.
+        val active = isModuleActive() || app.featureSettings != null
+        val missing = missingScope()
+        binding.statusCard.isClickable = active && missing.isNotEmpty()
+        if (active && missing.isNotEmpty()) {
+            renderScopeIncomplete(missing)
+            return
+        }
         val quickSettings = isOn(FeatureSettings.BLOCK_QUICK_SETTINGS)
         val powerMenu = isOn(FeatureSettings.BLOCK_POWER_MENU)
         val protecting = active && (quickSettings || powerMenu)
@@ -171,6 +212,19 @@ class MainActivity : AppCompatActivity() {
                 else -> R.string.status_off_body
             },
         )
+        binding.statusBody.setTextColor(content)
+    }
+
+    /** Enabled, but without the scope a protection needs: say which, and let a tap request it. */
+    private fun renderScopeIncomplete(missing: List<String>) {
+        val container = getColorStateList(R.color.status_inactive_container)
+        val content = getColorStateList(R.color.status_on_inactive_container)
+        binding.statusCard.setCardBackgroundColor(container)
+        binding.statusIcon.setImageResource(R.drawable.ic_shield_inactive)
+        binding.statusIcon.imageTintList = content
+        binding.statusTitle.setText(R.string.status_scope_title)
+        binding.statusTitle.setTextColor(content)
+        binding.statusBody.text = getString(R.string.status_scope_body, missing.joinToString(getString(R.string.scope_separator), transform = ::scopeLabel))
         binding.statusBody.setTextColor(content)
     }
 
