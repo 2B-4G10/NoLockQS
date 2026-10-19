@@ -106,14 +106,17 @@ class NoLockXposedModule : XposedModule() {
 
         /**
          * Scene-container entry points (Android 16+ "Flexiglass" SystemUI). Opening the shade or
-         * Quick Settings over the lock screen settles through [SceneInteractor] as a change to the
-         * Shade / Quick Settings scene, or as a Notifications-/Quick-Settings-shade overlay. The
+         * Quick Settings over the lock screen settles through the scene interactor as a change to
+         * the Shade / Quick Settings scene, or as a Notifications-/Quick-Settings-shade overlay. The
          * legacy [LOCKED_SHADE_ENTRY] classes are not on this path, so this is the layer that holds
-         * on current Pixels.
+         * on current Pixels. Up to Android 16 `SceneInteractor` is the class itself; on Android 17
+         * it is an interface and the work happens in its implementation.
          */
+        private val SCENE_CHANGE_METHODS = setOf("changeScene", "snapToScene", "showOverlay", "instantlyShowOverlay", "replaceOverlay")
         val SCENE_CONTAINER_ENTRY = mapOf(
-            "com.android.systemui.scene.domain.interactor.SceneInteractor" to
-                setOf("changeScene", "snapToScene", "showOverlay", "replaceOverlay"),
+            "com.android.systemui.scene.domain.interactor.SceneInteractor" to SCENE_CHANGE_METHODS,
+            "com.android.systemui.scene.domain.interactor.SceneInteractorImpl" to SCENE_CHANGE_METHODS,
+            "com.android.systemui.scene.domain.interactor.LegacySceneInteractorImpl" to SCENE_CHANGE_METHODS,
         )
 
         /**
@@ -130,6 +133,13 @@ class NoLockXposedModule : XposedModule() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Methods already hooked in this process, so a repeated package callback never hooks one twice. */
+    private val hookedMethods: MutableSet<Method> = Collections.synchronizedSet(HashSet())
+
+    /** SystemUI class loaders already hooked in this process. */
+    private val hookedLoaders: MutableSet<ClassLoader> =
+        Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>()))
 
     @Volatile
     private var collapsePending = false
@@ -163,6 +173,9 @@ class NoLockXposedModule : XposedModule() {
     override fun onPackageReady(param: PackageReadyParam) {
         when (param.packageName) {
             in SYSTEM_UI_PACKAGES -> {
+                // The framework can report SystemUI more than once per process, also with a class
+                // loader that holds none of its code; hook each real SystemUI loader once.
+                if (!isSystemUiLoader(param.classLoader) || !hookedLoaders.add(param.classLoader)) return
                 logEnvironment(param.packageName, param.classLoader)
                 installShadeTouchHooks(param.classLoader)
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Lock screen shade scene")
@@ -250,7 +263,9 @@ class NoLockXposedModule : XposedModule() {
                             gestureAnchor.remove(view)
                             blockedGestures.add(view)
                             log(Log.DEBUG, TAG, "Blocked a lock-screen shade pull (downward drag, dy=$dy).")
-                            return true
+                            // SystemUI already saw this gesture go down: end it there with a cancel,
+                            // or it waits for an up that never comes and ignores the next swipe up.
+                            return cancelGesture(chain, event)
                         }
                         if (dy < -slop || abs(dx) > slop) {
                             // Swipe up to unlock, or a sideways gesture: not a shade pull, let it run.
@@ -268,6 +283,16 @@ class NoLockXposedModule : XposedModule() {
         }
     }
 
+    /** Passes [event] on as ACTION_CANCEL, so the views below drop the gesture they were tracking. */
+    private fun cancelGesture(chain: Chain, event: MotionEvent): Any? {
+        val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+        return try {
+            chain.proceed(arrayOf<Any?>(cancel))
+        } finally {
+            cancel.recycle()
+        }
+    }
+
     /** At most once a second, records whether a lock-screen shade-root touch is seen as locked. */
     private fun logTouchDiag(view: View, event: MotionEvent, locked: Boolean) {
         val now = android.os.SystemClock.uptimeMillis()
@@ -282,6 +307,11 @@ class NoLockXposedModule : XposedModule() {
             SHADE_ROOT_CLASSES.any { it.contains("scene", ignoreCase = true) && loadClassOrNull(classLoader, it) != null }
         log(Log.INFO, TAG, "Hooking $packageName on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}); scene container present=$sceneContainer.")
     }
+
+    /** Whether [classLoader] holds SystemUI's own code: any class this module knows how to hook. */
+    private fun isSystemUiLoader(classLoader: ClassLoader): Boolean =
+        (SHADE_ROOT_CLASSES + SCENE_CONTAINER_ENTRY.keys + LOCKED_SHADE_ENTRY.keys + STATUS_BAR_STATE.keys + SYSTEM_UI_POWER_MENU.keys)
+            .any { loadClassOrNull(classLoader, it) != null }
 
     /** True unless the hook sits on [ViewGroup] and [view] is not one of the shade roots. */
     private fun isShadeRoot(chain: Chain, view: View): Boolean {
@@ -514,12 +544,16 @@ class NoLockXposedModule : XposedModule() {
         report(layer, methods.count { hookSafely(it, hooker) })
     }
 
-    private fun hookSafely(method: Method, hooker: Hooker): Boolean = try {
-        hook(method).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(hooker)
-        true
-    } catch (t: Throwable) {
-        log(Log.ERROR, TAG, "Could not hook ${method.declaringClass.name}#${method.name}", t)
-        false
+    private fun hookSafely(method: Method, hooker: Hooker): Boolean {
+        if (!hookedMethods.add(method)) return true
+        return try {
+            hook(method).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(hooker)
+            true
+        } catch (t: Throwable) {
+            hookedMethods.remove(method)
+            log(Log.ERROR, TAG, "Could not hook ${method.declaringClass.name}#${method.name}", t)
+            false
+        }
     }
 
     /** Maps a hooked method back to its hooker; used to carry hooks across a hot reload. */
