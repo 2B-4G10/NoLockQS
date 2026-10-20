@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -36,10 +37,11 @@ import java.util.WeakHashMap
  *    keyguard root view is consumed at `dispatchTouchEvent`, so the shade can never start to
  *    expand, wherever the pull starts and with one finger or two. This layer needs no internal
  *    class or method names beyond the root view, so it holds whatever SystemUI does above it. On
- *    top of it the known transitions are also refused directly: the legacy locked-shade entry
- *    points, and on the scene-container SystemUI (Android 16+ "Flexiglass", the current Pixel
- *    path) the change to the Shade / Quick Settings scene or overlay through SceneInteractor; and
- *    should the shade open anyway, the legacy path collapses it at once.
+ *    top of it the known transitions are also refused directly: requests to open the shade from
+ *    outside SystemUI (apps, accessibility, `cmd statusbar`), the legacy locked-shade entry points
+ *    (Android 15, 16), and on the scene-container SystemUI (Android 17 "Flexiglass") the change to
+ *    the Shade / Quick Settings scene or overlay; and should the legacy shade open anyway, it is
+ *    collapsed at once.
  *  - The power menu: in system_server, every trigger (power key, key chords, accessibility) is
  *    refused before SystemUI or the legacy dialog is asked to show it. SystemUI refuses it too,
  *    as a fallback for when the System Framework scope is not enabled.
@@ -49,7 +51,7 @@ import java.util.WeakHashMap
  *
  * Nothing is tied to a device model or an Android release. Hook targets are resolved from ordered
  * lists of known class and method names, a missing target only disables its own layer (and is
- * logged), and the dead-zone is measured from live [WindowInsets], so it follows rotation,
+ * logged), and the top strip is measured from live [WindowInsets], so it follows rotation,
  * cutouts, density and screen size.
  */
 class NoLockXposedModule : XposedModule() {
@@ -60,8 +62,8 @@ class NoLockXposedModule : XposedModule() {
         /** Master kill-switch: `setprop persist.sys.nolockqs.enabled false` (as root) pauses every layer. */
         const val TOGGLE_PROPERTY = "persist.sys.nolockqs.enabled"
 
-        /** Last-resort dead-zone height when neither insets nor the framework dimen are available. */
-        const val FALLBACK_DEAD_ZONE_DP = 28f
+        /** Last-resort top-strip height when neither insets nor the framework dimen are available. */
+        const val FALLBACK_TOP_STRIP_DP = 28f
 
         val SYSTEM_UI_PACKAGES = setOf("com.android.systemui", "com.google.android.systemui")
 
@@ -70,7 +72,6 @@ class NoLockXposedModule : XposedModule() {
             "com.android.systemui.shade.NotificationShadeWindowView",
             "com.android.systemui.scene.ui.view.SceneWindowRootView",
             "com.android.systemui.scene.ui.view.WindowRootView",
-            "com.android.systemui.statusbar.phone.NotificationShadeWindowView",
         )
 
         /** Methods that open the power menu in system_server, keyed by declaring class. */
@@ -84,8 +85,7 @@ class NoLockXposedModule : XposedModule() {
         val SYSTEM_UI_POWER_MENU = mapOf(
             "com.android.systemui.globalactions.GlobalActionsComponent" to setOf("handleShowGlobalActionsMenu"),
             "com.android.systemui.globalactions.GlobalActionsImpl" to setOf("showGlobalActions"),
-            "com.android.systemui.globalactions.GlobalActionsDialogLite" to setOf("showOrHideDialog", "showDialog", "handleShow"),
-            "com.android.systemui.globalactions.GlobalActionsDialog" to setOf("showOrHideDialog", "showDialog", "handleShow"),
+            "com.android.systemui.globalactions.GlobalActionsDialogLite" to setOf("showOrHideDialog", "handleShow"),
         )
 
         /** SystemUI's callback interface back to system_server for the power menu. */
@@ -100,8 +100,6 @@ class NoLockXposedModule : XposedModule() {
             "com.android.systemui.statusbar.DragDownHelper" to setOf("onInterceptTouchEvent"),
             "com.android.systemui.statusbar.LockscreenShadeTransitionController" to setOf("goToLockedShade"),
             "com.android.systemui.shade.QuickSettingsControllerImpl" to setOf("isOpenQsEvent"),
-            "com.android.systemui.shade.QuickSettingsController" to setOf("isOpenQsEvent"),
-            "com.android.systemui.shade.NotificationPanelViewController" to setOf("isOpenQsEvent"),
         )
 
         /**
@@ -110,22 +108,33 @@ class NoLockXposedModule : XposedModule() {
          * the Shade / Quick Settings scene, or as a Notifications-/Quick-Settings-shade overlay. The
          * legacy [LOCKED_SHADE_ENTRY] classes are not on this path, so this is the layer that holds
          * on current Pixels. Up to Android 16 `SceneInteractor` is the class itself; on Android 17
-         * it is an interface and the work happens in its implementation.
+         * it is an interface and the work happens in `LegacySceneInteractorImpl`.
          */
-        private val SCENE_CHANGE_METHODS = setOf("changeScene", "snapToScene", "showOverlay", "instantlyShowOverlay", "replaceOverlay")
+        private val SCENE_CHANGE_METHODS = setOf("changeScene", "snapToScene", "showOverlay", "instantlyShowOverlay")
         val SCENE_CONTAINER_ENTRY = mapOf(
             "com.android.systemui.scene.domain.interactor.SceneInteractor" to SCENE_CHANGE_METHODS,
-            "com.android.systemui.scene.domain.interactor.SceneInteractorImpl" to SCENE_CHANGE_METHODS,
             "com.android.systemui.scene.domain.interactor.LegacySceneInteractorImpl" to SCENE_CHANGE_METHODS,
         )
 
         /**
-         * Where the status bar state changes, in the legacy shade and in the scene container alike.
-         * Whatever opens the shade over the lock screen, the state becomes SHADE_LOCKED.
+         * Requests to open the shade or Quick Settings that reach SystemUI through the status bar
+         * service: apps holding EXPAND_STATUS_BAR, accessibility services, `cmd statusbar`. They
+         * open the panel directly, without a gesture or (in the legacy shade) a state change.
+         */
+        val PANEL_EXPAND_REQUESTS = mapOf(
+            "com.android.systemui.statusbar.CommandQueue" to setOf(
+                "animateExpandNotificationsPanel", "animateExpandSettingsPanel",
+                "toggleNotificationsPanel", "toggleQuickSettingsPanel",
+            ),
+        )
+
+        /**
+         * Where the status bar state changes in the legacy shade (Android 15, 16): whatever opens the
+         * shade over the lock screen, the state becomes SHADE_LOCKED. The scene container (17) has
+         * no such state; its scenes are vetoed through [SCENE_CONTAINER_ENTRY] instead.
          */
         val STATUS_BAR_STATE = mapOf(
-            "com.android.systemui.statusbar.StatusBarStateControllerImpl" to
-                setOf("setState", "updateStateAndNotifyListeners", "onStatusBarStateChanged"),
+            "com.android.systemui.statusbar.StatusBarStateControllerImpl" to setOf("setState"),
         )
 
         /** StatusBarState.SHADE_LOCKED: the shade, with Quick Settings, open over the lock screen. */
@@ -176,19 +185,20 @@ class NoLockXposedModule : XposedModule() {
                 // The framework can report SystemUI more than once per process, also with a class
                 // loader that holds none of its code; hook each real SystemUI loader once.
                 if (!isSystemUiLoader(param.classLoader) || !hookedLoaders.add(param.classLoader)) return
-                logEnvironment(param.packageName, param.classLoader)
+                logEnvironment(param.packageName)
                 installShadeTouchHooks(param.classLoader)
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Lock screen shade scene")
+                installHooks(param.classLoader, PANEL_EXPAND_REQUESTS, panelExpandRequestHooker, "Shade open requests", everyRelease = true)
                 installHooks(param.classLoader, LOCKED_SHADE_ENTRY, lockedShadeEntryHooker, "Lock screen pull-down")
                 installHooks(param.classLoader, STATUS_BAR_STATE, statusBarStateHooker, "Locked shade")
-                installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)")
+                installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)", everyRelease = true)
             }
             moduleApplicationInfo.packageName -> installModuleStatusHook(param.classLoader)
         }
     }
 
     override fun onSystemServerStarting(param: SystemServerStartingParam) {
-        installHooks(param.classLoader, SYSTEM_SERVER_POWER_MENU, systemServerPowerMenuHooker, "Power menu (system_server)")
+        installHooks(param.classLoader, SYSTEM_SERVER_POWER_MENU, systemServerPowerMenuHooker, "Power menu (system_server)", everyRelease = true)
     }
 
     /** Nothing to retire: the module owns no threads, receivers or native state. */
@@ -207,7 +217,7 @@ class NoLockXposedModule : XposedModule() {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Quick Settings dead-zone
+    // Lock screen touches
     // ---------------------------------------------------------------------------------------
 
     /**
@@ -219,7 +229,7 @@ class NoLockXposedModule : XposedModule() {
         val targets = roots.mapNotNull(::declaredDispatchTouchEvent).distinct().ifEmpty {
             if (roots.isEmpty()) emptyList() else listOf(ViewGroup::class.java.getDeclaredMethod("dispatchTouchEvent", MotionEvent::class.java))
         }
-        report("Quick Settings dead-zone", targets.count { hookSafely(it, shadeTouchHooker) })
+        report("Lock screen touches", targets.count { hookSafely(it, shadeTouchHooker) }, everyRelease = true)
     }
 
     /**
@@ -243,7 +253,7 @@ class NoLockXposedModule : XposedModule() {
                         val locked = isKeyguardLocked(view.context)
                         logTouchDiag(view, event, locked)
                         if (locked) {
-                            if (event.rawY <= statusBarDeadZone(view)) {
+                            if (event.rawY <= topStripHeight(view)) {
                                 blockedGestures.add(view)
                                 log(Log.DEBUG, TAG, "Blocked a lock-screen pull-down in the top strip (y=${event.rawY}).")
                                 return true
@@ -295,22 +305,20 @@ class NoLockXposedModule : XposedModule() {
 
     /** At most once a second, records whether a lock-screen shade-root touch is seen as locked. */
     private fun logTouchDiag(view: View, event: MotionEvent, locked: Boolean) {
-        val now = android.os.SystemClock.uptimeMillis()
+        val now = SystemClock.uptimeMillis()
         if (now - lastTouchDiagLog < 1000L) return
         lastTouchDiagLog = now
         log(Log.DEBUG, TAG, "Shade-root touch on ${view.javaClass.simpleName}: keyguardLocked=$locked, y=${event.rawY}.")
     }
 
-    /** One line at install so a single log shows the device, build and whether the scene container is present. */
-    private fun logEnvironment(packageName: String, classLoader: ClassLoader) {
-        val sceneContainer = SCENE_CONTAINER_ENTRY.keys.any { loadClassOrNull(classLoader, it) != null } ||
-            SHADE_ROOT_CLASSES.any { it.contains("scene", ignoreCase = true) && loadClassOrNull(classLoader, it) != null }
-        log(Log.INFO, TAG, "Hooking $packageName on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}); scene container present=$sceneContainer.")
+    /** One line at install so a single log shows the device and build; each layer then reports itself. */
+    private fun logEnvironment(packageName: String) {
+        log(Log.INFO, TAG, "Hooking $packageName on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}).")
     }
 
     /** Whether [classLoader] holds SystemUI's own code: any class this module knows how to hook. */
     private fun isSystemUiLoader(classLoader: ClassLoader): Boolean =
-        (SHADE_ROOT_CLASSES + SCENE_CONTAINER_ENTRY.keys + LOCKED_SHADE_ENTRY.keys + STATUS_BAR_STATE.keys + SYSTEM_UI_POWER_MENU.keys)
+        (SHADE_ROOT_CLASSES + SCENE_CONTAINER_ENTRY.keys + PANEL_EXPAND_REQUESTS.keys + LOCKED_SHADE_ENTRY.keys + STATUS_BAR_STATE.keys + SYSTEM_UI_POWER_MENU.keys)
             .any { loadClassOrNull(classLoader, it) != null }
 
     /** True unless the hook sits on [ViewGroup] and [view] is not one of the shade roots. */
@@ -325,7 +333,7 @@ class NoLockXposedModule : XposedModule() {
      * change; the framework dimen and a density-scaled default are fallbacks.
      */
     @SuppressLint("DiscouragedApi", "InternalInsetResource") // The dimen is only a fallback for missing insets.
-    private fun statusBarDeadZone(view: View): Float {
+    private fun topStripHeight(view: View): Float {
         try {
             view.rootWindowInsets?.let { insets ->
                 val top = maxOf(
@@ -341,7 +349,7 @@ class NoLockXposedModule : XposedModule() {
         val resources = view.resources
         val id = resources.getIdentifier("status_bar_height", "dimen", "android")
         if (id != 0) resources.getDimensionPixelSize(id).takeIf { it > 0 }?.let { return it.toFloat() }
-        return FALLBACK_DEAD_ZONE_DP * resources.displayMetrics.density
+        return FALLBACK_TOP_STRIP_DP * resources.displayMetrics.density
     }
 
     private fun declaredDispatchTouchEvent(cls: Class<*>): Method? = cls.declaredMethods.firstOrNull {
@@ -376,7 +384,7 @@ class NoLockXposedModule : XposedModule() {
     /**
      * Refuses to open the shade or Quick Settings over the lock screen in the scene container
      * (Android 16+). Every such gesture, the two-finger pull and a tapped notification included,
-     * settles through [SceneInteractor] as a change to the Shade / Quick Settings scene or as a
+     * settles through the scene interactor as a change to the Shade / Quick Settings scene or as a
      * Notifications-/Quick-Settings-shade overlay; while the keyguard is locked those destinations
      * are vetoed and the lock screen scene stays put. Leaving the shade (going to Lockscreen, Gone,
      * Bouncer and the rest) is untouched.
@@ -384,12 +392,23 @@ class NoLockXposedModule : XposedModule() {
     private val sceneContainerEntryHooker = object : Hooker {
         override fun intercept(chain: Chain): Any? {
             if (isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(contextOf(chain.thisObject))) {
-                // changeScene/snapToScene/showOverlay take the destination first; replaceOverlay(from, to).
-                val destination = if (chain.executable.name == "replaceOverlay") chain.args.getOrNull(1) else chain.args.firstOrNull()
+                // Every hooked method takes the destination scene or overlay first.
+                val destination = chain.args.firstOrNull()
                 if (destination != null && isShadeOrQuickSettingsKey(destination)) {
                     log(Log.INFO, TAG, "Blocked the '${sceneKeyName(destination)}' scene over the lock screen (${chain.executable.name}).")
                     return blockedResult(chain.executable)
                 }
+            }
+            return chain.proceed()
+        }
+    }
+
+    /** Refuses requests from outside SystemUI to open the shade or Quick Settings while locked. */
+    private val panelExpandRequestHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            if (isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(contextOf(chain.thisObject))) {
+                log(Log.INFO, TAG, "Blocked a request to open the shade over the lock screen (${chain.executable.name}).")
+                return blockedResult(chain.executable)
             }
             return chain.proceed()
         }
@@ -437,7 +456,7 @@ class NoLockXposedModule : XposedModule() {
         collapsePending = true
         mainHandler.post {
             collapsePending = false
-            val context = currentApplication() ?: return@post
+            val context = processContext() ?: return@post
             if (!isKeyguardLocked(context)) return@post
             runCatching {
                 val statusBar = context.getSystemService("statusbar") ?: return@runCatching
@@ -535,13 +554,19 @@ class NoLockXposedModule : XposedModule() {
     // Shared helpers
     // ---------------------------------------------------------------------------------------
 
-    private fun installHooks(classLoader: ClassLoader, targets: Map<String, Set<String>>, hooker: Hooker, layer: String) {
+    private fun installHooks(
+        classLoader: ClassLoader,
+        targets: Map<String, Set<String>>,
+        hooker: Hooker,
+        layer: String,
+        everyRelease: Boolean = false,
+    ) {
         val methods = targets.flatMap { (className, names) ->
             loadClassOrNull(classLoader, className)?.declaredMethods
                 ?.filter { it.name in names && !Modifier.isAbstract(it.modifiers) }
                 .orEmpty()
         }
-        report(layer, methods.count { hookSafely(it, hooker) })
+        report(layer, methods.count { hookSafely(it, hooker) }, everyRelease)
     }
 
     private fun hookSafely(method: Method, hooker: Hooker): Boolean {
@@ -563,6 +588,7 @@ class NoLockXposedModule : XposedModule() {
         return when {
             name == "dispatchTouchEvent" -> shadeTouchHooker
             SCENE_CONTAINER_ENTRY[owner]?.contains(name) == true -> sceneContainerEntryHooker
+            PANEL_EXPAND_REQUESTS[owner]?.contains(name) == true -> panelExpandRequestHooker
             LOCKED_SHADE_ENTRY[owner]?.contains(name) == true -> lockedShadeEntryHooker
             STATUS_BAR_STATE[owner]?.contains(name) == true -> statusBarStateHooker
             name == "isModuleActive" -> moduleActiveHooker
@@ -572,9 +598,13 @@ class NoLockXposedModule : XposedModule() {
         }
     }
 
-    private fun report(layer: String, count: Int) {
-        if (count > 0) log(Log.INFO, TAG, "$layer: $count hook(s) installed.")
-        else log(Log.WARN, TAG, "$layer: no known target on this build, layer inactive.")
+    /** Logs a layer's hook count; a missing layer is only a warning when every release has it. */
+    private fun report(layer: String, count: Int, everyRelease: Boolean = false) {
+        when {
+            count > 0 -> log(Log.INFO, TAG, "$layer: $count hook(s) installed.")
+            everyRelease -> log(Log.WARN, TAG, "$layer: no known target on this build, layer inactive.")
+            else -> log(Log.INFO, TAG, "$layer: not part of this build.")
+        }
     }
 
     private fun loadClassOrNull(classLoader: ClassLoader, name: String): Class<*>? = try {
@@ -616,7 +646,7 @@ class NoLockXposedModule : XposedModule() {
     private fun contextOf(target: Any?): Context? = when (target) {
         is Context -> target
         is View -> target.context
-        else -> fieldValues(target).filterIsInstance<Context>().firstOrNull() ?: currentApplication()
+        else -> fieldValues(target).filterIsInstance<Context>().firstOrNull() ?: processContext()
     }
 
     /** Non-null instance field values of [target], walking up its class hierarchy lazily. */
@@ -631,8 +661,15 @@ class NoLockXposedModule : XposedModule() {
         }
     }
 
+    /**
+     * The process's application, or its system context while the application is not set up yet
+     * (as early in SystemUI): either answers [KeyguardManager] for the device.
+     */
     @SuppressLint("PrivateApi") // Runs inside SystemUI and system_server, which may use hidden APIs.
-    private fun currentApplication(): Context? = runCatching {
-        Class.forName("android.app.ActivityThread").getMethod("currentApplication").invoke(null) as? Context
+    private fun processContext(): Context? = runCatching {
+        val activityThread = Class.forName("android.app.ActivityThread")
+        activityThread.getMethod("currentApplication").invoke(null) as? Context
+            ?: activityThread.getMethod("currentActivityThread").invoke(null)
+                ?.let { activityThread.getMethod("getSystemContext").invoke(it) as? Context }
     }.getOrNull()
 }
