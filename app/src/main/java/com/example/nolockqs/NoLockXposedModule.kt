@@ -230,6 +230,7 @@ class NoLockXposedModule : XposedModule() {
     }
 
     /** Stops following the lock state and lifts this generation's flag; the next one sets its own. */
+    @SuppressLint("MissingPermission") // Only removes the listener that watchLockState managed to add.
     private fun stopQuickSettingsGuard() {
         val context = guardContext ?: return
         if (quickSettingsDisabled == true) setQuickSettingsDisabled(false)
@@ -477,7 +478,7 @@ class NoLockXposedModule : XposedModule() {
         }
     }
 
-    @SuppressLint("PrivateApi") // Runs inside SystemUI and system_server, which may use hidden APIs.
+    @delegate:SuppressLint("PrivateApi") // Runs inside SystemUI and system_server, which may use hidden APIs.
     private val activityThread: Class<*>? by lazy { runCatching { Class.forName("android.app.ActivityThread") }.getOrNull() }
 
     /** The process's application, or null while it is not set up yet. */
