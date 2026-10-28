@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.5
+
+- Fixed: notifications on the lock screen can be tapped and expanded again, with their action buttons ([#12](https://github.com/2B-4G10/NoLockQS/issues/12)). Quick Settings is now switched off with Android's own Quick Settings switch while the phone is locked: the tiles are hidden and can't be reached by any pull-down or app, while the rest of the lock screen works as normal
+- Leaner module: the touch blocking and the internal System UI hooks it relied on are gone, which leaves far fewer places for an Android update to break
+
 ## v2.3
 
 - Fixed: Quick Settings / Control Center could still be pulled down on the lock screen on current Pixels. The block no longer depends on System UI's internal names: while the phone is locked, any downward pull on the lock screen is stopped at the source, from the top, the middle, or with two fingers. The lock check was also made reliable inside System UI, and the module now logs what it hooks and what it sees, so a single log pinpoints anything left
