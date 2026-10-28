@@ -27,7 +27,7 @@
     <string name="feature_state_off">Off</string>
     <string name="switches_unavailable">Enable NoLockQS in Vector to change this, then reopen the app.</string>
     <string name="feature_qs_title">Quick Settings</string>
-    <string name="feature_qs_body">Pulling down from the status bar or anywhere on the lock screen is blocked, so toggles like Wi-Fi, Bluetooth and airplane mode stay out of reach.</string>
+    <string name="feature_qs_body">The tiles are hidden and can\'t be pulled down or opened by apps, so toggles like Wi-Fi, Bluetooth and airplane mode stay out of reach. Notifications still open and expand.</string>
     <string name="feature_power_title">Power menu</string>
     <string name="feature_power_body">Holding the power button can\'t open it. Needs System Framework in Vector\'s scope.</string>
 
