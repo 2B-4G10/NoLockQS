@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.6
+
+- Fixed: Quick Settings could stay blocked after unlocking while Extreme Battery Saver was on. While Quick Settings is off, the module now checks the lock state again every second with the screen on, and whenever Quick Settings is opened, so it is always back as soon as the phone is unlocked
+- Fixed: on the classic shade (Android 16 and older, and ROMs built on it) pulling down on the lock screen or expanding a notification still showed the empty Quick Settings panel above the notifications ([#12](https://github.com/2B-4G10/NoLockQS/issues/12)). The shade now stays see-through over the lock screen, so only the notifications show
+
 ## v2.5
 
 - Fixed: notifications on the lock screen can be tapped and expanded again, with their action buttons ([#12](https://github.com/2B-4G10/NoLockQS/issues/12)). Quick Settings is now switched off with Android's own Quick Settings switch while the phone is locked: the tiles are hidden and can't be reached by any pull-down or app, while the rest of the lock screen works as normal

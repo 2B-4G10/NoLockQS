@@ -10,6 +10,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.ExceptionMode
@@ -20,6 +21,7 @@ import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import java.lang.reflect.Executable
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.Collections
@@ -36,6 +38,9 @@ import java.util.concurrent.Executor
  *    two-finger pulls and requests from apps alike, while the notifications stay usable: they can
  *    still be tapped, expanded and acted on. On the scene-container SystemUI (Android 16+) the
  *    Quick Settings scene and overlay are also vetoed directly, in case the flag arrives late.
+ *    On the legacy shade (up to Android 16) the shade's own backgrounds stay as see-through as
+ *    the lock screen's, so pulling down or expanding a notification shows no empty panel where
+ *    the tiles would be.
  *  - The power menu: in system_server, every trigger (power key, key chords, accessibility) is
  *    refused before SystemUI or the legacy dialog is asked to show it. SystemUI refuses it too,
  *    as a fallback for when the System Framework scope is not enabled.
@@ -62,6 +67,12 @@ class NoLockXposedModule : XposedModule() {
         /** How often, and for how long, to wait for SystemUI's application before giving up. */
         const val STARTUP_RETRY_MS = 500L
         const val STARTUP_RETRIES = 120
+
+        /**
+         * While Quick Settings is disabled and the screen is on, the lock state is checked again this
+         * often, so the flag is lifted after an unlock even when no lock event reaches SystemUI.
+         */
+        const val LOCK_RECHECK_MS = 1000L
 
         /** Methods that open the power menu in system_server, keyed by declaring class. */
         val SYSTEM_SERVER_POWER_MENU = mapOf(
@@ -92,6 +103,17 @@ class NoLockXposedModule : XposedModule() {
             "com.android.systemui.scene.domain.interactor.SceneInteractor" to SCENE_CHANGE_METHODS,
             "com.android.systemui.scene.domain.interactor.LegacySceneInteractorImpl" to SCENE_CHANGE_METHODS,
         )
+
+        /**
+         * The legacy shade's backgrounds (up to Android 16): the scrim behind the shade and the
+         * notifications panel get their alpha from these, directly or as an animation's target.
+         */
+        val SHADE_SCRIM = mapOf(
+            "com.android.systemui.statusbar.phone.ScrimController" to setOf("setScrimAlpha", "getCurrentScrimAlpha"),
+        )
+
+        /** Scrim states of the lock screen and of the shade pulled down over it. */
+        val LOCKED_SHADE_SCRIM_STATES = setOf("KEYGUARD", "SHADE_LOCKED")
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -127,6 +149,7 @@ class NoLockXposedModule : XposedModule() {
                 log(Log.INFO, TAG, "Hooking ${param.packageName} on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}).")
                 startQuickSettingsGuard()
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Quick Settings scene")
+                installHooks(param.classLoader, SHADE_SCRIM, shadeScrimHooker, "Shade background")
                 installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)", everyRelease = true)
             }
             moduleApplicationInfo.packageName -> installModuleStatusHook(param.classLoader)
@@ -233,6 +256,7 @@ class NoLockXposedModule : XposedModule() {
     @SuppressLint("MissingPermission") // Only removes the listener that watchLockState managed to add.
     private fun stopQuickSettingsGuard() {
         val context = guardContext ?: return
+        mainHandler.removeCallbacks(lockRecheck)
         if (quickSettingsDisabled == true) setQuickSettingsDisabled(false)
         lockReceiver?.let { runCatching { context.unregisterReceiver(it) } }
         (lockListener as? KeyguardManager.KeyguardLockedStateListener)?.let { listener ->
@@ -247,12 +271,24 @@ class NoLockXposedModule : XposedModule() {
         guardContext = null
     }
 
-    /** Disables Quick Settings while the keyguard is locked and the switch is on, else enables it. */
+    /**
+     * Disables Quick Settings while the keyguard is locked and the switch is on, else enables it.
+     * While it stays disabled with the screen on, the lock state is checked again every
+     * [LOCK_RECHECK_MS]: some power modes (Extreme Battery Saver on Pixels) can hold back the
+     * events this relies on, and Quick Settings must never stay disabled once the device is unlocked.
+     */
     private fun refreshQuickSettings() {
         val context = guardContext ?: return
         val disable = isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(context)
         if (disable != quickSettingsDisabled) setQuickSettingsDisabled(disable)
+        mainHandler.removeCallbacks(lockRecheck)
+        if (quickSettingsDisabled == true && isInteractive(context)) mainHandler.postDelayed(lockRecheck, LOCK_RECHECK_MS)
     }
+
+    private val lockRecheck = Runnable { refreshQuickSettings() }
+
+    private fun isInteractive(context: Context): Boolean =
+        runCatching { context.getSystemService(PowerManager::class.java).isInteractive }.getOrDefault(true)
 
     /** Sets or clears DISABLE2_QUICK_SETTINGS on this module's disable record. */
     private fun setQuickSettingsDisabled(disable: Boolean) {
@@ -280,6 +316,8 @@ class NoLockXposedModule : XposedModule() {
                 log(Log.INFO, TAG, "Blocked the '${sceneKeyName(destination)}' scene over the lock screen (${chain.executable.name}).")
                 return blockedResult(chain.executable)
             }
+            // Asked for Quick Settings while unlocked: make sure this module's flag is not in the way.
+            if (destination != null && quickSettingsDisabled == true && isQuickSettingsKey(destination)) mainHandler.post { refreshQuickSettings() }
             return chain.proceed()
         }
     }
@@ -292,6 +330,53 @@ class NoLockXposedModule : XposedModule() {
     /** Scenes.QuickSettings and Overlays.QuickSettingsShade, matched on the debug name. */
     private fun isQuickSettingsKey(key: Any): Boolean =
         "quicksettings" in sceneKeyName(key).lowercase().filter(Char::isLetterOrDigit)
+
+    /**
+     * With Quick Settings disabled the legacy shade still draws its panel where the tiles would
+     * be: the notifications panel, and the scrim behind, which then serves as the Quick Settings
+     * background and is clipped to a rounded panel above the notifications. While this module
+     * keeps Quick Settings disabled, the lock screen and the shade pulled down over it keep the
+     * notifications panel clear and fade the scrim behind out as the shade opens, so only the
+     * notifications show over the wallpaper. `setScrimAlpha(scrim, alpha)` sets a scrim,
+     * `getCurrentScrimAlpha(scrim)` is where its animations head; both run on the main thread,
+     * like the guard.
+     */
+    private val shadeScrimHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val controller = chain.thisObject ?: return chain.proceed()
+            val scrim = chain.args.firstOrNull() ?: return chain.proceed()
+            if (chain.args.size == 2) {
+                val alpha = chain.args[1] as? Float ?: return chain.proceed()
+                val clear = lockedShadeScrimAlpha(controller, scrim, alpha)
+                return if (clear == alpha) chain.proceed() else chain.proceed(arrayOf(scrim, clear))
+            }
+            val alpha = chain.proceed() as? Float ?: return null
+            return lockedShadeScrimAlpha(controller, scrim, alpha)
+        }
+    }
+
+    /** The alpha [scrim] gets over the locked shade while Quick Settings is disabled, else [alpha]. */
+    private fun lockedShadeScrimAlpha(controller: Any, scrim: Any, alpha: Float): Float {
+        if (quickSettingsDisabled != true) return alpha
+        val state = (fieldValue(controller, "mState") as? Enum<*>)?.name
+        if (state !in LOCKED_SHADE_SCRIM_STATES) return alpha
+        return when {
+            scrim === fieldValue(controller, "mNotificationsScrim") -> 0f
+            scrim === fieldValue(controller, "mScrimBehind") -> {
+                // The lock screen's own dim while the shade is closed, none once it is open.
+                val opened = if (state == "KEYGUARD") fieldValue(controller, "mTransitionToFullShadeProgress") as? Float ?: 0f else 1f
+                (fieldValue(controller, "mScrimBehindAlphaKeyguard") as? Float)?.let { minOf(alpha, it * (1f - opened)) } ?: alpha
+            }
+            else -> alpha
+        }
+    }
+
+    /** A ScrimController field by name; null when this build has no such field. */
+    private fun fieldValue(target: Any, name: String): Any? = runCatching {
+        scrimFields.getOrPut(name) { target.javaClass.getDeclaredField(name).apply { isAccessible = true } }.get(target)
+    }.getOrNull()
+
+    private val scrimFields = HashMap<String, Field>()
 
     // ---------------------------------------------------------------------------------------
     // Power menu
@@ -383,7 +468,7 @@ class NoLockXposedModule : XposedModule() {
 
     /** Whether [classLoader] holds SystemUI's own code: any class this module knows how to hook. */
     private fun isSystemUiLoader(classLoader: ClassLoader): Boolean =
-        (SCENE_CONTAINER_ENTRY.keys + SYSTEM_UI_POWER_MENU.keys).any { loadClassOrNull(classLoader, it) != null }
+        (SCENE_CONTAINER_ENTRY.keys + SHADE_SCRIM.keys + SYSTEM_UI_POWER_MENU.keys).any { loadClassOrNull(classLoader, it) != null }
 
     private fun installHooks(
         classLoader: ClassLoader,
@@ -423,6 +508,7 @@ class NoLockXposedModule : XposedModule() {
         val name = executable.name
         return when {
             SCENE_CONTAINER_ENTRY[owner]?.contains(name) == true -> sceneContainerEntryHooker
+            SHADE_SCRIM[owner]?.contains(name) == true -> shadeScrimHooker
             name == "isModuleActive" -> moduleActiveHooker
             SYSTEM_SERVER_POWER_MENU[owner]?.contains(name) == true -> systemServerPowerMenuHooker
             SYSTEM_UI_POWER_MENU[owner]?.contains(name) == true -> systemUiPowerMenuHooker
