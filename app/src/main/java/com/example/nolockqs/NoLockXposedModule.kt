@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.ExceptionMode
@@ -74,6 +75,12 @@ class NoLockXposedModule : XposedModule() {
          */
         const val LOCK_RECHECK_MS = 1000L
 
+        /** At most one forced clear per this long while someone else holds the Quick Settings flag. */
+        const val LIFT_THROTTLE_MS = 10_000L
+
+        /** Broadcasts after which the flag is sent again even if it seems unchanged. */
+        val RESYNC_ACTIONS = setOf(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED, Intent.ACTION_CONFIGURATION_CHANGED)
+
         /** Methods that open the power menu in system_server, keyed by declaring class. */
         val SYSTEM_SERVER_POWER_MENU = mapOf(
             "com.android.server.policy.PhoneWindowManager" to setOf("showGlobalActionsInternal"),
@@ -114,6 +121,14 @@ class NoLockXposedModule : XposedModule() {
 
         /** Scrim states of the lock screen and of the shade pulled down over it. */
         val LOCKED_SHADE_SCRIM_STATES = setOf("KEYGUARD", "SHADE_LOCKED")
+
+        /**
+         * Where SystemUI receives the status bar's combined disable flags. Seeing Quick Settings
+         * disabled there while unlocked means this module's flag may have outlived the lock screen.
+         */
+        val SYSTEM_UI_DISABLE_FLAGS = mapOf(
+            "com.android.systemui.statusbar.CommandQueue" to setOf("disable"),
+        )
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -150,6 +165,7 @@ class NoLockXposedModule : XposedModule() {
                 startQuickSettingsGuard()
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Quick Settings scene")
                 installHooks(param.classLoader, SHADE_SCRIM, shadeScrimHooker, "Shade background")
+                installHooks(param.classLoader, SYSTEM_UI_DISABLE_FLAGS, disableFlagsHooker, "Disable flags watch")
                 installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)", everyRelease = true)
             }
             moduleApplicationInfo.packageName -> installModuleStatusHook(param.classLoader)
@@ -225,17 +241,21 @@ class NoLockXposedModule : XposedModule() {
     /**
      * Follows the keyguard: the locked-state listener reports every change, also those without a
      * screen change (boot, Smart Lock, face unlock). The screen and user-present broadcasts back it
-     * up, and the feature switch applies as soon as it is flipped.
+     * up, and the feature switch applies as soon as it is flipped. Battery Saver and configuration
+     * changes (Battery Saver switches the dark theme) re-send the flag outright, so the status bar
+     * service always holds what the lock state calls for.
      */
     @SuppressLint("MissingPermission") // SystemUI may hold SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE; if not, the broadcasts do.
     private fun watchLockState(context: Context) {
         val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) = refreshQuickSettings()
+            override fun onReceive(context: Context, intent: Intent) =
+                refreshQuickSettings(force = intent.action in RESYNC_ACTIONS)
         }
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_USER_PRESENT)
+            RESYNC_ACTIONS.forEach(::addAction)
         }
         runCatching { context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) }
             .onSuccess { lockReceiver = receiver }
@@ -276,16 +296,45 @@ class NoLockXposedModule : XposedModule() {
      * While it stays disabled with the screen on, the lock state is checked again every
      * [LOCK_RECHECK_MS]: some power modes (Extreme Battery Saver on Pixels) can hold back the
      * events this relies on, and Quick Settings must never stay disabled once the device is unlocked.
+     * With [force] the flag is sent even when it matches what was last sent.
      */
-    private fun refreshQuickSettings() {
+    private fun refreshQuickSettings(force: Boolean = false) {
         val context = guardContext ?: return
         val disable = isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(context)
-        if (disable != quickSettingsDisabled) setQuickSettingsDisabled(disable)
+        if (force || disable != quickSettingsDisabled) setQuickSettingsDisabled(disable)
         mainHandler.removeCallbacks(lockRecheck)
         if (quickSettingsDisabled == true && isInteractive(context)) mainHandler.postDelayed(lockRecheck, LOCK_RECHECK_MS)
     }
 
     private val lockRecheck = Runnable { refreshQuickSettings() }
+
+    /**
+     * Watches the disable flags SystemUI receives. When they hide Quick Settings while the device
+     * is unlocked, this module's flag is cleared again outright: whatever this module last sent,
+     * its record in the status bar service must not keep Quick Settings hidden after an unlock.
+     * Flags held by anything else (device policy, remote input) are left alone.
+     */
+    private val disableFlagsHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val result = chain.proceed()
+            val state2 = chain.args.getOrNull(2) as? Int ?: return result
+            if (state2 and DISABLE2_QUICK_SETTINGS != 0) mainHandler.post { liftIfUnlocked() }
+            return result
+        }
+    }
+
+    /** When [liftIfUnlocked] last cleared the flag, so a flag held by someone else is not fought over. */
+    private var lastLiftUptime = 0L
+
+    private fun liftIfUnlocked() {
+        val context = guardContext ?: return
+        if (isKeyguardLocked(context)) return
+        val now = SystemClock.uptimeMillis()
+        if (quickSettingsDisabled != true && now - lastLiftUptime < LIFT_THROTTLE_MS) return
+        lastLiftUptime = now
+        if (quickSettingsDisabled == true) log(Log.WARN, TAG, "Quick Settings was still disabled after an unlock; lifting it.")
+        setQuickSettingsDisabled(false)
+    }
 
     private fun isInteractive(context: Context): Boolean =
         runCatching { context.getSystemService(PowerManager::class.java).isInteractive }.getOrDefault(true)
@@ -297,8 +346,9 @@ class NoLockXposedModule : XposedModule() {
             statusBar.javaClass.getMethod("disable2", Int::class.javaPrimitiveType)
                 .invoke(statusBar, if (disable) DISABLE2_QUICK_SETTINGS else DISABLE2_NONE)
         }.onSuccess {
+            val changed = quickSettingsDisabled != disable
             quickSettingsDisabled = disable
-            log(Log.INFO, TAG, if (disable) "Quick Settings disabled: the device is locked." else "Quick Settings enabled again.")
+            if (changed) log(Log.INFO, TAG, if (disable) "Quick Settings disabled: the device is locked." else "Quick Settings enabled again.")
         }.onFailure { log(Log.ERROR, TAG, "Quick Settings: the status bar service refused the change", it) }
     }
 
@@ -509,6 +559,7 @@ class NoLockXposedModule : XposedModule() {
         return when {
             SCENE_CONTAINER_ENTRY[owner]?.contains(name) == true -> sceneContainerEntryHooker
             SHADE_SCRIM[owner]?.contains(name) == true -> shadeScrimHooker
+            SYSTEM_UI_DISABLE_FLAGS[owner]?.contains(name) == true -> disableFlagsHooker
             name == "isModuleActive" -> moduleActiveHooker
             SYSTEM_SERVER_POWER_MENU[owner]?.contains(name) == true -> systemServerPowerMenuHooker
             SYSTEM_UI_POWER_MENU[owner]?.contains(name) == true -> systemUiPowerMenuHooker
