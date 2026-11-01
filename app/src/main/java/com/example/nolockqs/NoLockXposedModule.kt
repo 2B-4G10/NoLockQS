@@ -75,6 +75,9 @@ class NoLockXposedModule : XposedModule() {
          */
         const val LOCK_RECHECK_MS = 1000L
 
+        /** How long the lock events get to lift the flag before the disable-flags watch steps in. */
+        const val LIFT_DELAY_MS = 1000L
+
         /** At most one forced clear per this long while someone else holds the Quick Settings flag. */
         const val LIFT_THROTTLE_MS = 10_000L
 
@@ -277,6 +280,7 @@ class NoLockXposedModule : XposedModule() {
     private fun stopQuickSettingsGuard() {
         val context = guardContext ?: return
         mainHandler.removeCallbacks(lockRecheck)
+        mainHandler.removeCallbacks(liftCheck)
         if (quickSettingsDisabled == true) setQuickSettingsDisabled(false)
         lockReceiver?.let { runCatching { context.unregisterReceiver(it) } }
         (lockListener as? KeyguardManager.KeyguardLockedStateListener)?.let { listener ->
@@ -318,10 +322,17 @@ class NoLockXposedModule : XposedModule() {
         override fun intercept(chain: Chain): Any? {
             val result = chain.proceed()
             val state2 = chain.args.getOrNull(2) as? Int ?: return result
-            if (state2 and DISABLE2_QUICK_SETTINGS != 0) mainHandler.post { liftIfUnlocked() }
+            if (state2 and DISABLE2_QUICK_SETTINGS != 0) {
+                // At an unlock the keyguard's own flag change gets here just before the lock events,
+                // so give those their chance first and step in only if the flag is still set.
+                mainHandler.removeCallbacks(liftCheck)
+                mainHandler.postDelayed(liftCheck, LIFT_DELAY_MS)
+            }
             return result
         }
     }
+
+    private val liftCheck = Runnable { liftIfUnlocked() }
 
     /** When [liftIfUnlocked] last cleared the flag, so a flag held by someone else is not fought over. */
     private var lastLiftUptime = 0L
