@@ -322,6 +322,7 @@ class NoLockXposedModule : XposedModule() {
         override fun intercept(chain: Chain): Any? {
             val result = chain.proceed()
             val state2 = chain.args.getOrNull(2) as? Int ?: return result
+            lastDisable2 = state2
             if (state2 and DISABLE2_QUICK_SETTINGS != 0) {
                 // At an unlock the keyguard's own flag change gets here just before the lock events,
                 // so give those their chance first and step in only if the flag is still set.
@@ -334,6 +335,9 @@ class NoLockXposedModule : XposedModule() {
 
     private val liftCheck = Runnable { liftIfUnlocked() }
 
+    /** The disable2 flags SystemUI last received, for the log. Main thread only. */
+    private var lastDisable2 = 0
+
     /** When [liftIfUnlocked] last cleared the flag, so a flag held by someone else is not fought over. */
     private var lastLiftUptime = 0L
 
@@ -343,9 +347,14 @@ class NoLockXposedModule : XposedModule() {
         val now = SystemClock.uptimeMillis()
         if (quickSettingsDisabled != true && now - lastLiftUptime < LIFT_THROTTLE_MS) return
         lastLiftUptime = now
+        if (lastDisable2 and DISABLE2_QUICK_SETTINGS == 0) return
         if (quickSettingsDisabled == true) log(Log.WARN, TAG, "Quick Settings was still disabled after an unlock; lifting it.")
+        else log(Log.WARN, TAG, "Quick Settings is hidden while unlocked, but not by this module (disable2=0x${Integer.toHexString(lastDisable2)}, power save=${isPowerSave(context)}). Run 'dumpsys statusbar' to see who holds it.")
         setQuickSettingsDisabled(false)
     }
+
+    private fun isPowerSave(context: Context): Boolean =
+        runCatching { context.getSystemService(PowerManager::class.java).isPowerSaveMode }.getOrDefault(false)
 
     private fun isInteractive(context: Context): Boolean =
         runCatching { context.getSystemService(PowerManager::class.java).isInteractive }.getOrDefault(true)
