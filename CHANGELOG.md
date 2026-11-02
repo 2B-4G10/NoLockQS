@@ -2,7 +2,8 @@
 
 ## v2.7
 
-- Fixed: Quick Settings could now and then stay hidden (only notifications showing) on an unlocked phone after Battery Saver turned on. The module now sends its Quick Settings switch again whenever Battery Saver or the system configuration changes, and if System UI is ever told to hide Quick Settings while the phone is unlocked, the module lifts its own switch at once instead of waiting for a lock event
+- Fixed: Quick Settings could now and then stay hidden (only notifications showing) on an unlocked phone after Battery Saver turned on. The module now sends its Quick Settings switch again whenever Battery Saver or the system configuration changes, and if System UI is still told to hide Quick Settings a second after an unlock, the module lifts its own switch instead of waiting for a lock event
+- If Quick Settings is ever hidden on an unlocked phone by something other than the module, the module log now says so, with the flags and the Battery Saver state, so the cause can be tracked down
 
 ## v2.6
 
