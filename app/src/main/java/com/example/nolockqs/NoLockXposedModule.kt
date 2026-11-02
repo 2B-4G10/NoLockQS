@@ -344,10 +344,10 @@ class NoLockXposedModule : XposedModule() {
     private fun liftIfUnlocked() {
         val context = guardContext ?: return
         if (isKeyguardLocked(context)) return
+        if (lastDisable2 and DISABLE2_QUICK_SETTINGS == 0) return
         val now = SystemClock.uptimeMillis()
         if (quickSettingsDisabled != true && now - lastLiftUptime < LIFT_THROTTLE_MS) return
         lastLiftUptime = now
-        if (lastDisable2 and DISABLE2_QUICK_SETTINGS == 0) return
         if (quickSettingsDisabled == true) log(Log.WARN, TAG, "Quick Settings was still disabled after an unlock; lifting it.")
         else log(Log.WARN, TAG, "Quick Settings is hidden while unlocked, but not by this module (disable2=0x${Integer.toHexString(lastDisable2)}, power save=${isPowerSave(context)}). Run 'dumpsys statusbar' to see who holds it.")
         setQuickSettingsDisabled(false)
