@@ -1,6 +1,7 @@
 package com.example.nolockqs
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -164,7 +165,7 @@ class NoLockXposedModule : XposedModule() {
                 // The framework can report SystemUI more than once per process, also with a class
                 // loader that holds none of its code; hook each real SystemUI loader once.
                 if (!isSystemUiLoader(param.classLoader) || !hookedLoaders.add(param.classLoader)) return
-                log(Log.INFO, TAG, "Hooking ${param.packageName} on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}).")
+                log(Log.INFO, TAG, "Hooking ${param.packageName} (process ${runCatching { Application.getProcessName() }.getOrNull()}) on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}).")
                 startQuickSettingsGuard()
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Quick Settings scene")
                 installHooks(param.classLoader, SHADE_SCRIM, shadeScrimHooker, "Shade background")
@@ -230,6 +231,16 @@ class NoLockXposedModule : XposedModule() {
             if (context == null) {
                 if (attempt < STARTUP_RETRIES) mainHandler.postDelayed({ startQuickSettingsGuard(attempt + 1) }, STARTUP_RETRY_MS)
                 else log(Log.ERROR, TAG, "Quick Settings: SystemUI's application never came up, layer inactive.")
+                return@post
+            }
+            // SystemUI runs some services in processes of their own (the screenshot service, for one),
+            // and the module is loaded into those as well. Such a process is cached and frozen soon
+            // after its work is done; a frozen process can't hear the unlock, so a flag it sent while
+            // locked would keep Quick Settings hidden until it is thawed or killed. Only SystemUI's
+            // main process, which never goes to sleep, may hold the flag.
+            val process = runCatching { Application.getProcessName() }.getOrNull()
+            if (process != null && process != context.packageName) {
+                log(Log.INFO, TAG, "Quick Settings: '$process' is not SystemUI's main process, leaving the flag to it.")
                 return@post
             }
             guardContext = context
