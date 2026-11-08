@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.8
+
+- Fixed: Quick Settings could now and then stay hidden (only notifications showing) on an unlocked phone. System UI runs a few services, such as the screenshot service, in processes of their own, and the module ran its lock guard in each of them. Android freezes such a process soon after its job is done, and a frozen process never hears the unlock, so its Quick Settings switch stayed on. The module now works only in System UI's main process, and a reboot or System UI restart after updating clears any switch left behind
+- Cleanup: the Battery Saver resync and the disable-flags watch from v2.7 are gone, since they chased the wrong cause
+
 ## v2.7
 
 - Fixed: Quick Settings could now and then stay hidden (only notifications showing) on an unlocked phone after Battery Saver turned on. The module now sends its Quick Settings switch again whenever Battery Saver or the system configuration changes, and if System UI is still told to hide Quick Settings a second after an unlock, the module lifts its own switch instead of waiting for a lock event
