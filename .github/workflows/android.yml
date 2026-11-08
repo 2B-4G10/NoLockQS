@@ -64,6 +64,21 @@ jobs:
           fi
           echo "release=$release" >> "$GITHUB_OUTPUT"
 
+      # The README's release badge is a static shields.io badge: the dynamic one asks the GitHub
+      # API through shields.io on every view and often fails to load. Its version is kept equal to
+      # module.prop's, which a pull request has to do; on main a mismatch only warns.
+      - name: Check the README release badge
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          badge="https://img.shields.io/badge/release-v${VERSION//-/--}-"
+          if ! grep -qF "$badge" README.md; then
+            level=error
+            if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then level=warning; fi
+            echo "::$level file=README.md::The release badge does not show v$VERSION. Set it to ${badge}DD0E1C"
+            if [ "$level" = error ]; then exit 1; fi
+          fi
+
       - name: Set up JDK and Android SDK
         run: .github/scripts/setup-toolchain.sh
 
