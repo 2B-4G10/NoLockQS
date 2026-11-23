@@ -1,0 +1,48 @@
+name: Release notes
+
+# Keeps the notes of the releases already out, here and in the Xposed Modules Repository, in step
+# with CHANGELOG.md: whenever the changelog (or how notes are laid out) changes on main, and from
+# the Actions tab. It only edits release notes; it never builds, tags or publishes a release.
+# New releases get the same notes when Android CI publishes them.
+# Like the other workflows, it only uses shell steps and the tools preinstalled on the runner.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - CHANGELOG.md
+      - .github/scripts/changelog.sh
+      - .github/scripts/release-notes.sh
+      - .github/scripts/sync-release-notes.sh
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-notes
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Update the release notes
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout
+        run: |
+          git init -q .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth=1 origin "$GITHUB_SHA"
+          git checkout -q --detach FETCH_HEAD
+
+      # The token is the one Android CI uses; see .github/workflows/android.yml.
+      - name: Rewrite the notes from CHANGELOG.md
+        env:
+          MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
+          XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
+        run: .github/scripts/sync-release-notes.sh

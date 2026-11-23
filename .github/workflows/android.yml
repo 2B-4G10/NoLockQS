@@ -79,6 +79,17 @@ jobs:
             if [ "$level" = error ]; then exit 1; fi
           fi
 
+      # A new version's release notes come from its section in CHANGELOG.md. Without one they are
+      # made from the commit subjects, which reads less well, so a pull request is reminded.
+      - name: Check the changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -z "$(.github/scripts/changelog.sh "$VERSION")" ] \
+            && ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --silent 2>/dev/null; then
+            echo "::warning file=CHANGELOG.md::No \"## v$VERSION\" section: the release notes will be made from the commit subjects. Add a section (summary, Highlights, Fixes, Changes, Under the hood) for nicer notes."
+          fi
+
       - name: Set up JDK and Android SDK
         run: .github/scripts/setup-toolchain.sh
 
@@ -104,7 +115,9 @@ jobs:
           NOLOCKQS_KEY_PASSWORD: ${{ secrets.NOLOCKQS_KEY_PASSWORD }}
         run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
 
-      # The release is named exactly like its tag, and the APK carries the same name.
+      # The release is named exactly like its tag, and the APK carries the same name. Its notes are
+      # the version's section in CHANGELOG.md (or, without one, made from its commits), laid out by
+      # .github/scripts/release-notes.sh, which the Xposed Modules Repository's release uses too.
       - name: Publish the release
         if: steps.version.outputs.release == 'true'
         env:
@@ -112,23 +125,16 @@ jobs:
           SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK"
-          changes=$(.github/scripts/changelog.sh "$VERSION")
-          {
-            echo "## Install"
-            echo "1. Install \`$APK\` on your rooted device."
-            echo "2. In Vector, enable NoLockQS for **System UI** and **System Framework**."
-            echo "3. Reboot and the protection is active."
-            if [ -n "$changes" ]; then printf '\n## Changes\n%s\n' "$changes"; fi
-            if [ "$SIGNED" != "true" ]; then
-              printf '\n> [!WARNING]\n> Signed with a temporary key: uninstall the previous version before installing this one.\n'
-            fi
-          } > "$RUNNER_TEMP/release-notes.md"
+          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+          TAG="$TAG" PREVIOUS_TAG="$previous" TARGET="$GITHUB_SHA" APK="$APK" SIGNED="$SIGNED" \
+            .github/scripts/release-notes.sh "$VERSION" github > "$RUNNER_TEMP/release-notes.md"
+          cat "$RUNNER_TEMP/release-notes.md"
           # Replace any draft an earlier run left for this version.
           gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq ".[] | select(.draft and .tag_name == \"$TAG\" and .author.login == \"github-actions[bot]\") | .id" \
             | while read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"; done
           gh release create "$TAG" "$APK" --title "$TAG" --target "$GITHUB_SHA" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
+            --notes-file "$RUNNER_TEMP/release-notes.md"
 
       # Dependabot can only open pull requests, and merging one would make dependabot[bot] the
       # author on main. Once its update builds, the same change goes straight to main under the

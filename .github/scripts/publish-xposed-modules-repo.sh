@@ -232,14 +232,14 @@ module_gh api "repos/$MODULE_REPO/releases?per_page=100" \
   --jq ".[] | select(.draft and .tag_name == \"$tag\") | .id" \
   | while read -r id; do module_gh api -X DELETE "repos/$MODULE_REPO/releases/$id"; done
 
-# The changes listed in CHANGELOG.md, or else the release's own notes.
-changes=$(.github/scripts/changelog.sh "$apk_version")
-if [ -z "$changes" ]; then changes=$(jq -r '.body // empty' <<< "$release"); fi
+# The same notes as the release here (from CHANGELOG.md, or else made from its commits), with a
+# link to it instead of the install steps.
 notes="$RUNNER_TEMP/module-release-notes.md"
-{
-  if [ -n "$changes" ]; then printf '%s\n\n' "$changes"; fi
-  echo "Full release notes: $(jq -r .html_url <<< "$release")"
-} > "$notes"
+previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" 2>/dev/null | jq -r --arg t "$release_tag" \
+  '[.[] | select((.draft or .prerelease) | not)] | sort_by(.published_at) | (map(.tag_name) | index($t)) as $i
+   | if $i and $i > 0 then .[$i - 1].tag_name else empty end' 2>/dev/null || true)
+TAG="$release_tag" PREVIOUS_TAG="$previous" RELEASE_URL="$(jq -r .html_url <<< "$release")" \
+  .github/scripts/release-notes.sh "$apk_version" xposed > "$notes"
 
 # A pre-release stays one there, and doesn't become the latest release.
 prerelease=$(jq -r '.prerelease == true' <<< "$release")
