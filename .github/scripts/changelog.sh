@@ -4,9 +4,14 @@
 # blank lines around it trimmed. Prints nothing if there is no such section.
 set -euo pipefail
 
-version=$(sed 's/[.[\*^$]/\\&/g' <<< "$1")
-awk -v v="$version" '
-  tolower($0) ~ "^## v" v "([ :]|$)" { found = 1; next }
+# The heading is matched as plain text, so the dots in a version are not regex wildcards.
+awk -v head="## v$1" '
+  function is_heading(line,   rest) {
+    if (tolower(substr(line, 1, length(head))) != tolower(head)) return 0
+    rest = substr(line, length(head) + 1, 1)
+    return rest == "" || rest == " " || rest == ":"
+  }
+  !found && is_heading($0) { found = 1; next }
   found && /^## / { exit }
   found {
     if ($0 ~ /^[[:space:]]*$/) { if (started) blank = 1; next }
