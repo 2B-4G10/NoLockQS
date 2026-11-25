@@ -14,22 +14,23 @@
 #
 # This script:
 #  1. checks that the token still works, and warns two weeks before it expires.
-#  2. makes the repository's files match this branch: its README.md (with relative links pointing
-#     back here), a SCOPE from scope.list, a SOURCE_URL to this repository, FUNDING.yml and the
-#     files in .github/xposed-modules-repo (SUMMARY). Nothing else: the rules ask for no source code
-#     there.
-#  3. sets the repository's description to the module name and its homepage to this repository.
+#  2. makes the repository's files match this branch: its README.md, the files its relative links
+#     point at (such as the icon) and LICENSE with LICENSES, so that its links work there whether
+#     or not this repository is public; a SCOPE from scope.list; FUNDING.yml and the files in
+#     .github/xposed-modules-repo (SUMMARY); and, only while this repository is public, a
+#     SOURCE_URL to it. Nothing else: the rules ask for no source code there.
+#  3. sets the repository's description to the module name and its homepage to this repository
+#     while it is public, otherwise to the module's repository itself.
 #  4. publishes a release of this repository there, unless it is already there: RELEASE_TAG, or
 #     else the latest release. Its APK must pass the bot's checks, have the repository's package
 #     and be signed with the same key as the newest APK there, so that Vector can update to it. The
 #     release there is tagged from the APK's own version, like the bot does.
 #
 # Expects: MODULE_REPO (owner/name), XPOSED_TOKEN (a token that can push to it and publish releases;
-# without one, nothing is published), SOURCE_BRANCH (the branch checked out here, which README.md
-# links point at), optionally RELEASE_TAG and APK (that release's APK file, when this run made it;
-# otherwise it is downloaded), GIT_COMMITTER_NAME/EMAIL, gh with GH_TOKEN and GH_REPO (this
-# repository), ANDROID_HOME with build-tools (aapt2 and apksigner), Java (JAVA_HOME, else on the
-# PATH) and RUNNER_TEMP. Runs in the checkout.
+# without one, nothing is published), optionally RELEASE_TAG and APK (that release's APK file, when
+# this run made it; otherwise it is downloaded), GIT_COMMITTER_NAME/EMAIL, gh with GH_TOKEN and
+# GH_REPO (this repository), ANDROID_HOME with build-tools (aapt2 and apksigner), Java (JAVA_HOME,
+# else on the PATH) and RUNNER_TEMP. Runs in the checkout.
 set -euo pipefail
 
 MODULE_PROP=app/src/main/resources/META-INF/xposed/module.prop
@@ -49,8 +50,16 @@ version=$(prop version)
 version_code=$(prop versionCode)
 package=${MODULE_REPO#*/}
 source_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
-source_branch=${SOURCE_BRANCH:-$GITHUB_REF_NAME}
 source_sha=$(git rev-parse HEAD)
+module_url="$GITHUB_SERVER_URL/$MODULE_REPO"
+
+# A private repository (NoLockQS is closed source) is not linked to from there: its pages would only
+# show a 404. If GitHub can't say, it is treated as private, which leaves no dead link either.
+if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private 2>/dev/null || echo true)" = false ]; then
+  homepage=$source_url
+else
+  homepage=$module_url
+fi
 
 # gh and git as the owner of the token, for the module's repository.
 module_gh() { GH_TOKEN="$XPOSED_TOKEN" gh "$@"; }
@@ -92,10 +101,26 @@ remote clone -q --depth 1 "$GITHUB_SERVER_URL/$MODULE_REPO.git" "$repo_dir"
 branch=$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD)
 git -C "$repo_dir" rm -rq --ignore-unmatch .
 
-# Relative links in README.md point at this branch here (images at the raw file, links at its page),
-# so the copy only changes when README.md does.
-raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$source_branch"
-blob="$source_url/blob/$source_branch"
+# Relative links in README.md point at copies of their files there (images at the raw file, links at
+# its page), so they work even when this repository is private. LICENSE always goes along: it holds
+# the terms the module is published under.
+raw="https://raw.githubusercontent.com/$MODULE_REPO/$branch"
+blob="$module_url/blob/$branch"
+{
+  grep -oE '(src|href)="[^":#/][^":]*"' README.md | sed -E 's/^[a-z]+="//; s/"$//' || true
+  grep -oE '\]\([^):#/ ][^): ]*\)' README.md | sed -E 's/^\]\(//; s/\)$//' || true
+  printf '%s\n' LICENSE LICENSES
+} | sed 's/[#?].*//' | sort -u | while IFS= read -r path; do
+  case "$path" in
+    ''|*..*) continue ;;
+  esac
+  if [ -e "$path" ]; then
+    mkdir -p "$repo_dir/$(dirname "$path")"
+    cp -R "$path" "$repo_dir/$(dirname "$path")/"
+  else
+    echo "::warning file=README.md::README.md links to $path, which does not exist."
+  fi
+done
 sed -E \
   -e 's|src="([^":#/][^":]*)"|src="'"$raw"'/\1"|g' \
   -e 's|href="([^":#/][^":]*)"|href="'"$blob"'/\1"|g' \
@@ -108,7 +133,9 @@ sed -E \
 sed 's/[[:space:]]//g' "$SCOPE_LIST" \
   | jq -R --arg self "$package" 'select(length > 0 and (startswith("#") | not) and . != $self)' \
   | jq -s . > "$repo_dir/SCOPE"
-printf '%s\n' "$source_url" > "$repo_dir/SOURCE_URL"
+if [ "$homepage" = "$source_url" ]; then
+  printf '%s\n' "$source_url" > "$repo_dir/SOURCE_URL"
+fi
 if [ -f .github/FUNDING.yml ]; then
   mkdir -p "$repo_dir/.github"
   cp .github/FUNDING.yml "$repo_dir/.github/"
@@ -119,19 +146,24 @@ git -C "$repo_dir" add -A
 if git -C "$repo_dir" diff --cached --quiet; then
   echo "$MODULE_REPO: the files are up to date."
 else
+  if [ "$homepage" = "$source_url" ]; then
+    origin="$source_url/commit/$source_sha"
+  else
+    origin="$GITHUB_REPOSITORY@$source_sha"
+  fi
   git -C "$repo_dir" commit -q -m "Update from $GITHUB_REPOSITORY@${source_sha:0:7}" \
-    -m "The module's description, published from $source_url/commit/$source_sha."
+    -m "The module's description, published from $origin."
   remote -C "$repo_dir" push -q origin "HEAD:$branch"
   echo "$MODULE_REPO: updated the files on $branch."
 fi
 
 # 3. The repository's description and homepage.
 settings=$(module_gh repo view "$MODULE_REPO" --json description,homepageUrl --jq '.description + "|" + .homepageUrl' || true)
-if [ "$settings" != "$name|$source_url" ]; then
-  if module_gh repo edit "$MODULE_REPO" --description "$name" --homepage "$source_url" > /dev/null; then
-    echo "$MODULE_REPO: set the description to $name and the homepage to $source_url."
+if [ "$settings" != "$name|$homepage" ]; then
+  if module_gh repo edit "$MODULE_REPO" --description "$name" --homepage "$homepage" > /dev/null; then
+    echo "$MODULE_REPO: set the description to $name and the homepage to $homepage."
   else
-    echo "::warning::Could not set the description and homepage of $MODULE_REPO, which needs admin access to it. Set them by hand: $name and $source_url."
+    echo "::warning::Could not set the description and homepage of $MODULE_REPO, which needs admin access to it. Set them by hand: $name and $homepage."
   fi
 fi
 

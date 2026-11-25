@@ -184,7 +184,6 @@ jobs:
         env:
           MODULE_REPO: Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS
           XPOSED_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
-          SOURCE_BRANCH: ${{ github.ref_name }}
           RELEASE_TAG: v${{ needs.build.outputs.version }}
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
