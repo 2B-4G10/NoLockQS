@@ -204,16 +204,34 @@ fi
 
 # Vector only updates an app with an APK signed by the same key, so a release signed with another
 # one (a debug build, say) would strand everyone who installed it from there.
-# apksigner names the first signer "Signer #1" up to build-tools 36 and "V2 Signer:" since 37.
-signer() {
-  PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$PATH" "$apksigner" verify --print-certs "$1" 2>&1 \
-    | awk -F 'certificate SHA-256 digest: ' 'NF > 1 && !found { print $2; found = 1 }'
+# signers prints every distinct certificate SHA-256 digest apksigner lists for an APK, one per line
+# and sorted, so APKs signed with the same key match whichever signature schemes each one carries.
+# The labels are ignored, as they change between build-tools: up to 36 they are "Signer #1", "Signer
+# #2"..., since 37 there is one block per scheme the APK carries ("V1 Signer:", "V2 Signer:",
+# "V3 Signer:"...). A Source Stamp is not a signer, and only the certificate listing on stdout is
+# read, never a digest quoted in a warning. It fails if apksigner rejects the APK; then, or when it
+# prints nothing, apksigner_said shows what apksigner wrote.
+signers() {
+  PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$PATH" "$apksigner" verify --print-certs "$1" \
+    > "$RUNNER_TEMP/apksigner.out" 2> "$RUNNER_TEMP/apksigner.err" || return 1
+  sed -nE '/^Source Stamp/d; s/.*certificate SHA-256 digest: ([0-9A-Fa-f]{64})[[:space:]]*$/\1/p' \
+    "$RUNNER_TEMP/apksigner.out" | tr 'A-F' 'a-f' | sort -u
 }
-if ! apk_signer=$(signer "$apk") || [ -z "$apk_signer" ]; then
-  echo "::error::${apk##*/} is not validly signed, so Vector could not install it. apksigner ($apksigner) says:"
-  PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$PATH" "$apksigner" verify --print-certs "$apk" 2>&1 | grep -v '^WARNING' | head -20 || true
+apksigner_said() {
+  echo "apksigner ($apksigner) says:"
+  cat "$RUNNER_TEMP/apksigner.out" "$RUNNER_TEMP/apksigner.err" | grep -v '^WARNING' || true
+}
+if ! apk_signers=$(signers "$apk"); then
+  echo "::error::apksigner rejects the signature of ${apk##*/}, so Vector could not install it."
+  apksigner_said
   exit 1
 fi
+if [ -z "$apk_signers" ]; then
+  echo "::error::apksigner verifies ${apk##*/}, but its output lists no certificate SHA-256 digest that signers() in $0 can read, so the signing key can't be checked. Its output format has probably changed again: update signers() to match it."
+  apksigner_said
+  exit 1
+fi
+echo "${apk##*/} is signed by: $(paste -sd ' ' <<< "$apk_signers")"
 newest=$(module_gh api "repos/$MODULE_REPO/releases?per_page=100" --jq '
   [.[] | select((.draft | not) and (.tag_name | test("^[0-9]+-")))
        | {tag: .tag_name, published_at, url: ([.assets[] | select(.name | endswith(".apk")) | .browser_download_url][0])}
@@ -221,8 +239,13 @@ newest=$(module_gh api "repos/$MODULE_REPO/releases?per_page=100" --jq '
   | sort_by(.published_at) | last // empty | "\(.tag) \(.url)"')
 if [ -n "$newest" ]; then
   curl -fsSL -o "$RUNNER_TEMP/newest-module.apk" "${newest#* }"
-  if [ "$(signer "$RUNNER_TEMP/newest-module.apk" || true)" != "$apk_signer" ]; then
-    echo "::error::${apk##*/} is signed with a different key than the APK of ${newest%% *} in $MODULE_REPO, so Vector could not update to it from there. Publish an APK signed with the release key, like the ones Android CI builds."
+  if ! newest_signers=$(signers "$RUNNER_TEMP/newest-module.apk") || [ -z "$newest_signers" ]; then
+    echo "::error::Could not read who signed the APK of ${newest%% *} in $MODULE_REPO (${newest#* }), so ${apk##*/} can't be checked against it."
+    apksigner_said
+    exit 1
+  fi
+  if [ "$newest_signers" != "$apk_signers" ]; then
+    echo "::error::${apk##*/} is signed with a different key than the APK of ${newest%% *} in $MODULE_REPO ($(paste -sd ' ' <<< "$newest_signers")), so Vector could not update to it from there. Publish an APK signed with the release key, like the ones Android CI builds."
     exit 1
   fi
 fi
