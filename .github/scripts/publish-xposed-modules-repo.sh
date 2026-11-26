@@ -270,7 +270,7 @@ newest=$(module_gh api "repos/$MODULE_REPO/releases?per_page=100" --jq '
        | select(.url)]
   | sort_by(.published_at) | last // empty | "\(.tag) \(.url)"')
 if [ -n "$newest" ]; then
-  curl -fsSL -o "$RUNNER_TEMP/newest-module.apk" "${newest#* }"
+  curl -fsSL --retry 3 -o "$RUNNER_TEMP/newest-module.apk" "${newest#* }"
   if ! newest_signers=$(signers "$RUNNER_TEMP/newest-module.apk") || [ -z "$newest_signers" ]; then
     echo "::error::Could not read who signed the APK of ${newest%% *} in $MODULE_REPO (${newest#* }), so ${apk##*/} can't be checked against it."
     apksigner_said
