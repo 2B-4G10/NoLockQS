@@ -27,6 +27,7 @@ jobs:
   sync:
     name: Update the release notes
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

@@ -23,6 +23,8 @@ jobs:
   build:
     name: Build and release
     runs-on: ubuntu-24.04
+    # A normal run takes about 3 minutes; this only stops a hung build from using up the minutes.
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -113,7 +115,7 @@ jobs:
           NOLOCKQS_KEYSTORE_PASSWORD: ${{ secrets.NOLOCKQS_KEYSTORE_PASSWORD }}
           NOLOCKQS_KEY_ALIAS: ${{ secrets.NOLOCKQS_KEY_ALIAS }}
           NOLOCKQS_KEY_PASSWORD: ${{ secrets.NOLOCKQS_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
+        run: .github/scripts/gradle.sh :app:assembleDebug :app:assembleRelease --stacktrace
 
       # The release is named exactly like its tag, and the APK carries the same name. Its notes are
       # the version's section in CHANGELOG.md (or, without one, made from its commits), laid out by
@@ -164,6 +166,7 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

@@ -69,7 +69,7 @@ try_update() {
     problem="applying it failed"
   elif git diff --quiet; then
     problem="the version was not where the check expects it"
-  elif ! ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace >> "$log" 2>&1; then
+  elif ! .github/scripts/gradle.sh :app:assembleDebug :app:assembleRelease --stacktrace >> "$log" 2>&1; then
     problem="the build failed"
   else
     git add -u
@@ -93,7 +93,7 @@ The check tries again every week, and a newer release often fixes this. Close th
 update_gradle() {
   # The first run switches the version; the second regenerates the wrapper files with it.
   for _ in 1 2; do
-    ./gradlew --quiet wrapper --gradle-version "$1" --gradle-distribution-sha256-sum "$2" || return 1
+    .github/scripts/gradle.sh --quiet wrapper --gradle-version "$1" --gradle-distribution-sha256-sum "$2" || return 1
   done
 }
 

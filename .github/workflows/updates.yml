@@ -25,6 +25,8 @@ jobs:
   check:
     name: Check for updates
     runs-on: ubuntu-24.04
+    # Each update is built once; a full run with several updates stays well under this.
+    timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -51,3 +53,21 @@ jobs:
 
       - name: Check Gradle, the Android Gradle Plugin, the Android SDK and libxposed
         run: .github/scripts/check-updates.sh
+
+      # GitHub switches off a public repository's scheduled workflows after 60 days without
+      # activity. Enabling a workflow that is already on starts those 60 days again, so the weekly
+      # checks here and in xposed-modules-repo.yml never lapse during a quiet stretch. A workflow
+      # switched off by hand is left off.
+      - name: Keep the weekly workflows switched on
+        if: ${{ !cancelled() }}
+        run: |
+          for workflow in updates.yml xposed-modules-repo.yml; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq .state || echo unknown)
+            if [ "$state" = disabled_manually ]; then
+              echo "::notice::$workflow was switched off by hand; leaving it off."
+            elif gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/enable" --silent; then
+              echo "$workflow: kept on (was $state)"
+            else
+              echo "::warning::Could not keep $workflow switched on; enable it in the Actions tab if it stops running."
+            fi
+          done
