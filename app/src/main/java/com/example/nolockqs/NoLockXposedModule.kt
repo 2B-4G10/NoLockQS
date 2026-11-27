@@ -115,12 +115,16 @@ class NoLockXposedModule : XposedModule() {
 
         /**
          * Failed unlocks on the lock screen. A wrong PIN, pattern or password reaches the framework
-         * through `LockPatternUtils.reportFailedPasswordAttempt(userId)` in System UI; a fingerprint
-         * or face that isn't recognized through `KeyguardUpdateMonitor`. Only the fact and the
-         * time are reported, never the credential.
+         * through `LockPatternUtils.reportFailedPasswordAttempt(userId)` in System UI. A fingerprint
+         * or face that isn't recognized reaches System UI's own FingerprintManager or FaceManager,
+         * which hands it on in `sendAuthenticatedFailed()` (System UI only authenticates for the
+         * lock screen; an app's biometric prompt reports to that app), and on older builds also
+         * passes `KeyguardUpdateMonitor`. Only the fact and the time are reported, never the credential.
          */
         val FAILED_UNLOCK_EVENTS = mapOf(
             "com.android.internal.widget.LockPatternUtils" to setOf("reportFailedPasswordAttempt"),
+            "android.hardware.fingerprint.FingerprintManager" to setOf("sendAuthenticatedFailed"),
+            "android.hardware.face.FaceManager" to setOf("sendAuthenticatedFailed"),
             "com.android.keyguard.KeyguardUpdateMonitor" to setOf("handleFingerprintAuthFailed", "handleFaceAuthFailed"),
         )
 
@@ -187,7 +191,7 @@ class NoLockXposedModule : XposedModule() {
             "com.android.systemui.keyguard.KeyguardViewMediator" to setOf(
                 "handleShow", "handleShowInner", "handleHide",
                 "handleStartKeyguardExitAnimation", "handleStartKeyguardExitAnimationInner",
-                "onStartedGoingToSleep",
+                "setPendingLock", "handleNotifyStartedGoingToSleep",
             ),
         )
 
@@ -472,7 +476,7 @@ class NoLockXposedModule : XposedModule() {
                 // The screen is going off and the keyguard will lock as soon as it is (power button
                 // locks instantly, or no lock delay): count as shown now. On Android 17 the keyguard's
                 // own SHOW comes most of a second later.
-                "onStartedGoingToSleep" -> if (pendingLock(chain.thisObject)) {
+                "setPendingLock", "handleNotifyStartedGoingToSleep" -> if (pendingLock(chain.thisObject)) {
                     goingAwayUntil = 0L
                     shownUntil = now + SHOWN_GRACE_MS
                 }
@@ -496,9 +500,11 @@ class NoLockXposedModule : XposedModule() {
             val result = chain.proceed()
             runCatching {
                 if (!isKeyguardLocked(guardContext ?: systemContext())) return@runCatching
-                val kind = when (chain.executable.name) {
-                    "handleFingerprintAuthFailed" -> Reports.KIND_FAILED_FINGERPRINT
-                    "handleFaceAuthFailed" -> Reports.KIND_FAILED_FACE
+                val owner = chain.executable.declaringClass.name
+                val kind = when {
+                    owner.endsWith("FingerprintManager") || chain.executable.name == "handleFingerprintAuthFailed" ->
+                        Reports.KIND_FAILED_FINGERPRINT
+                    owner.endsWith("FaceManager") || chain.executable.name == "handleFaceAuthFailed" -> Reports.KIND_FAILED_FACE
                     else -> credentialKind(chain.thisObject, chain.args.firstOrNull() as? Int)
                 }
                 reportBlocked(kind, FAILED_UNLOCK_DEBOUNCE_MS)
