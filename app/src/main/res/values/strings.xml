@@ -82,10 +82,10 @@
 
     <string name="support_title">Support NoLockQS</string>
     <string name="support_body">If NoLockQS keeps your phone safer, you can support its development on Patreon or Ko-fi.</string>
-    <string name="support_button">Support on Patreon</string>
+    <string name="support_button">Support me on Patreon</string>
     <string name="kofi_button">Support me on Ko-fi</string>
     <string name="kofi_url" translatable="false">https://ko-fi.com/2b4g10/10</string>
-    <string name="patreon_url" translatable="false">https://patreon.com/Dossary</string>
+    <string name="patreon_url" translatable="false">https://www.patreon.com/c/Dossary</string>
     <string name="no_browser">No browser found to open the link.</string>
 
     <string name="compatibility_info">Works on rooted phones with Android 15 or newer: Pixels, and ROMs with near-stock (AOSP) System UI.</string>

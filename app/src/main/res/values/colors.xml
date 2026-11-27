@@ -18,6 +18,10 @@
     <!-- The heart in the support box, in the red of the app icon. -->
     <color name="heart">#FFDD0E1C</color>
 
+    <!-- Patreon's button, in Patreon's coral. -->
+    <color name="patreon_button">#FFFF424D</color>
+    <color name="patreon_on_button">#FFFFFFFF</color>
+
     <!-- Ko-fi's button, as on the developer's Ko-fi widget. -->
     <color name="kofi_button">#FF72A4F2</color>
     <color name="kofi_on_button">#FFFFFFFF</color>

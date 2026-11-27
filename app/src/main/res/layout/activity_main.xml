@@ -341,18 +341,20 @@
                             app:layout_constraintStart_toStartOf="parent"
                             app:layout_constraintTop_toTopOf="parent" />
 
+                        <!-- In Patreon's colors, styled to pair with the Ko-fi button. -->
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/patreon_button"
                             style="@style/Widget.Material3.Button"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/support_button"
-                            android:textColor="?attr/colorOnTertiary"
-                            app:backgroundTint="?attr/colorTertiary"
-                            app:icon="@drawable/ic_open_in_new"
-                            app:iconGravity="textEnd"
+                            android:textColor="@color/patreon_on_button"
+                            android:textStyle="bold"
+                            app:backgroundTint="@color/patreon_button"
+                            app:icon="@drawable/ic_patreon"
+                            app:iconGravity="textStart"
                             app:iconSize="18dp"
-                            app:iconTint="?attr/colorOnTertiary" />
+                            app:iconTint="@color/patreon_on_button" />
 
                         <!-- In the colors of Ko-fi's own "Support me on Ko-fi" button. -->
                         <com.google.android.material.button.MaterialButton
