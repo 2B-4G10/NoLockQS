@@ -40,7 +40,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:text="@string/app_name"
-                android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+                android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -67,13 +68,13 @@
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/status_card"
-                style="@style/Widget.Material3.CardView.Filled"
+                style="@style/Widget.NoLockQS.GlassCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                app:cardCornerRadius="24dp">
+                android:layout_marginTop="24dp">
 
                 <LinearLayout
+                    android:background="@drawable/bg_glass_sheen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -119,6 +120,8 @@
                 android:layout_marginTop="28dp"
                 android:paddingHorizontal="4dp"
                 android:text="@string/protection_header"
+                android:letterSpacing="0.1"
+                android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorPrimary" />
 
@@ -153,18 +156,19 @@
                 android:layout_marginTop="28dp"
                 android:paddingHorizontal="4dp"
                 android:text="@string/attempts_header"
+                android:letterSpacing="0.1"
+                android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorPrimary" />
 
             <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
+                style="@style/Widget.NoLockQS.GlassCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-                app:cardCornerRadius="24dp">
+                android:layout_marginTop="12dp">
 
                 <LinearLayout
+                    android:background="@drawable/bg_glass_sheen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -247,18 +251,19 @@
                 android:layout_marginTop="28dp"
                 android:paddingHorizontal="4dp"
                 android:text="@string/theme_header"
+                android:letterSpacing="0.1"
+                android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorPrimary" />
 
             <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
+                style="@style/Widget.NoLockQS.GlassCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-                app:cardCornerRadius="24dp">
+                android:layout_marginTop="12dp">
 
                 <LinearLayout
+                    android:background="@drawable/bg_glass_sheen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -331,18 +336,19 @@
                 android:layout_marginTop="28dp"
                 android:paddingHorizontal="4dp"
                 android:text="@string/diagnostics_header"
+                android:letterSpacing="0.1"
+                android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorPrimary" />
 
             <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
+                style="@style/Widget.NoLockQS.GlassCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-                app:cardCornerRadius="24dp">
+                android:layout_marginTop="12dp">
 
                 <LinearLayout
+                    android:background="@drawable/bg_glass_sheen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -375,14 +381,14 @@
             <!-- Support -->
 
             <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
+                style="@style/Widget.NoLockQS.GlassCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
-                app:cardBackgroundColor="?attr/colorTertiaryContainer"
-                app:cardCornerRadius="24dp">
+                app:cardBackgroundColor="@color/support_fill">
 
                 <LinearLayout
+                    android:background="@drawable/bg_glass_sheen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -395,7 +401,7 @@
                         android:gravity="center_vertical"
                         android:text="@string/support_title"
                         android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textColor="?attr/colorOnTertiaryContainer"
+                        android:textColor="?attr/colorOnSurface"
                         app:drawableStartCompat="@drawable/ic_favorite"
                         app:drawableTint="@color/heart" />
 
@@ -405,7 +411,7 @@
                         android:layout_marginTop="8dp"
                         android:text="@string/support_body"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="?attr/colorOnTertiaryContainer" />
+                        android:textColor="?attr/colorOnSurface" />
 
                     <!-- The two ways to support, side by side, wrapping onto two lines when they don't fit. -->
                     <androidx.constraintlayout.widget.ConstraintLayout
@@ -467,20 +473,21 @@
                 android:layout_marginTop="28dp"
                 android:paddingHorizontal="4dp"
                 android:text="@string/about_header"
+                android:letterSpacing="0.1"
+                android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorPrimary" />
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/developer_card"
-                style="@style/Widget.Material3.CardView.Filled"
+                style="@style/Widget.NoLockQS.GlassCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:contentDescription="@string/developer_link_description"
-                app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-                app:cardCornerRadius="24dp">
+                android:contentDescription="@string/developer_link_description">
 
                 <LinearLayout
+                    android:background="@drawable/bg_glass_sheen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"

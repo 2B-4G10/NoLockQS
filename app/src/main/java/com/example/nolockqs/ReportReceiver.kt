@@ -56,8 +56,23 @@ class ReportReceiver : BroadcastReceiver() {
         /** The history icon of a [Reports] KIND_ value. */
         fun kindIcon(kind: String): Int = when (kind) {
             Reports.KIND_POWER_MENU -> R.drawable.ic_power_menu
+            Reports.KIND_WRONG_PIN -> R.drawable.ic_kind_pin
+            Reports.KIND_WRONG_PATTERN -> R.drawable.ic_kind_pattern
+            Reports.KIND_WRONG_PASSWORD -> R.drawable.ic_kind_password
+            Reports.KIND_FAILED_FINGERPRINT -> R.drawable.ic_kind_fingerprint
+            Reports.KIND_FAILED_FACE -> R.drawable.ic_kind_face
             in Reports.FAILED_UNLOCK_KINDS -> R.drawable.ic_lock_failed
             else -> R.drawable.ic_quick_settings
+        }
+
+        /**
+         * The bubble and icon colors of a [Reports] KIND_ value: amber for a face or fingerprint,
+         * rose for a wrong PIN, pattern or password, violet for a blocked Quick Settings or power menu.
+         */
+        fun kindColors(kind: String): Pair<Int, Int> = when (kind) {
+            Reports.KIND_FAILED_FINGERPRINT, Reports.KIND_FAILED_FACE -> R.color.kind_bio_bg to R.color.kind_bio_fg
+            in Reports.FAILED_UNLOCK_KINDS -> R.color.kind_unlock_bg to R.color.kind_unlock_fg
+            else -> R.color.kind_block_bg to R.color.kind_block_fg
         }
     }
 
@@ -99,7 +114,8 @@ class ReportReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_shield_active)
+            // The icon of what was tried, as in the history: the title names the same attempt.
+            .setSmallIcon(kindIcon(kind))
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
