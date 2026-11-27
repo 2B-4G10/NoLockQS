@@ -143,7 +143,11 @@ class NoLockXposedModule : XposedModule() {
          */
         val KEYGUARD_STATE_EVENTS = mapOf(
             "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl" to setOf("notifyKeyguardState", "notifyKeyguardGoingAway"),
-            "com.android.systemui.keyguard.KeyguardViewMediator" to setOf("handleShow", "handleHide", "handleStartKeyguardExitAnimation"),
+            // handleShowInner and handleStartKeyguardExitAnimationInner on 16+, the plain names before.
+            "com.android.systemui.keyguard.KeyguardViewMediator" to setOf(
+                "handleShow", "handleShowInner", "handleHide",
+                "handleStartKeyguardExitAnimation", "handleStartKeyguardExitAnimationInner",
+            ),
         )
 
         /** Requests from apps and `cmd statusbar` to open Quick Settings; reported while blocked, never changed. */
