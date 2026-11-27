@@ -1,8 +1,58 @@
 <resources>
-    <!-- Light and dark Material 3; MainActivity adds Material You colors. The layout draws edge-to-edge. -->
+    <!--
+        Light and dark "glass": a fixed palette (no Material You), a glowing backdrop behind the
+        whole window and frosted, see-through cards. The layout draws edge-to-edge.
+    -->
     <style name="Theme.NoLockQS" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/p_primary</item>
+        <item name="colorOnPrimary">@color/p_on_primary</item>
+        <item name="colorPrimaryContainer">@color/p_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/p_on_primary_container</item>
+        <item name="colorSecondary">@color/p_secondary</item>
+        <item name="colorOnSecondary">@color/p_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/p_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/p_on_secondary_container</item>
+        <item name="colorTertiary">@color/p_tertiary</item>
+        <item name="colorOnTertiary">@color/p_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/p_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/p_on_tertiary_container</item>
+        <item name="colorSurface">@color/p_surface</item>
+        <item name="colorOnSurface">@color/p_on_surface</item>
+        <item name="colorSurfaceVariant">@color/p_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/p_on_surface_variant</item>
+        <item name="android:colorBackground">@color/p_surface</item>
+        <item name="colorOnBackground">@color/p_on_surface</item>
+        <item name="colorOutline">@color/p_outline</item>
+        <item name="colorOutlineVariant">@color/p_outline_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/p_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/p_container_low</item>
+        <item name="colorSurfaceContainer">@color/p_container</item>
+        <item name="colorSurfaceContainerHigh">@color/p_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/p_container_highest</item>
+        <item name="colorError">@color/p_error</item>
+        <item name="colorOnError">@color/p_on_error</item>
+        <item name="colorErrorContainer">@color/p_error_container</item>
+        <item name="colorOnErrorContainer">@color/p_on_error_container</item>
+        <item name="android:windowBackground">@drawable/bg_glass</item>
         <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
         <item name="android:windowLightNavigationBar">?attr/isLightTheme</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.NoLockQS.Dialog</item>
+    </style>
+
+    <!-- Dialogs blur what is behind them, like frosted glass. -->
+    <style name="ThemeOverlay.NoLockQS.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:windowBlurBehindRadius">28dp</item>
+        <item name="android:backgroundDimAmount">0.25</item>
+    </style>
+
+    <!-- A frosted glass card: see-through fill, a thin bright edge and no shadow. -->
+    <style name="Widget.NoLockQS.GlassCard" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/glass_fill</item>
+        <item name="strokeColor">@color/glass_stroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cardCornerRadius">28dp</item>
+        <item name="cardElevation">0dp</item>
     </style>
 
     <!-- Round crop for the developer logo in the About card. -->

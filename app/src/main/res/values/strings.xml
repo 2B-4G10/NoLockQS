@@ -44,8 +44,6 @@
         <item quantity="one">The latest %1$d of %2$d blocked attempt:</item>
         <item quantity="other">The latest %1$d of %2$d blocked attempts:</item>
     </plurals>
-    <!-- A row of the history: what was blocked, then when. -->
-    <string name="attempt_row" translatable="false">%1$s · %2$s</string>
     <string name="attempts_clear">Clear history</string>
     <string name="attempts_clear_title">Clear the history?</string>
     <plurals name="attempts_clear_message">

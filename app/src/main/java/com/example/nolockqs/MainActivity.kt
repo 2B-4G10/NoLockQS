@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -27,10 +28,9 @@ import androidx.core.net.toUri
 import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import androidx.core.widget.TextViewCompat
 import com.example.nolockqs.databinding.ActivityMainBinding
+import com.example.nolockqs.databinding.ItemAttemptBinding
 import com.example.nolockqs.databinding.ItemFeatureBinding
-import com.google.android.material.color.DynamicColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class MainActivity : AppCompatActivity() {
@@ -75,7 +75,6 @@ class MainActivity : AppCompatActivity() {
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { renderAttempts() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -358,16 +357,17 @@ class MainActivity : AppCompatActivity() {
         }
         binding.attemptsList.removeAllViews()
         attempts.take(ATTEMPTS_SHOWN).forEach { attempt ->
-            val row = layoutInflater.inflate(R.layout.item_attempt, binding.attemptsList, false) as TextView
-            val icon = ReportReceiver.kindIcon(attempt.kind)
-            row.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
-            TextViewCompat.setCompoundDrawableTintList(row, getColorStateList(R.color.attempt_icon))
-            val at = DateUtils.formatDateTime(
+            val row = ItemAttemptBinding.inflate(layoutInflater, binding.attemptsList, false)
+            val (bubble, tint) = ReportReceiver.kindColors(attempt.kind)
+            row.attemptIcon.setImageResource(ReportReceiver.kindIcon(attempt.kind))
+            row.attemptIcon.backgroundTintList = getColorStateList(bubble)
+            row.attemptIcon.imageTintList = getColorStateList(tint)
+            row.attemptKind.text = ReportReceiver.kindLabel(this, attempt.kind)
+            row.attemptTime.text = DateUtils.formatDateTime(
                 this, attempt.time,
                 DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
             )
-            row.text = getString(R.string.attempt_row, ReportReceiver.kindLabel(this, attempt.kind), at)
-            binding.attemptsList.addView(row)
+            binding.attemptsList.addView(row.root)
         }
         binding.clearHistory.visibility = if (attempts.isEmpty()) View.GONE else View.VISIBLE
     }
@@ -383,6 +383,9 @@ class MainActivity : AppCompatActivity() {
                 renderAttempts()
             }
             .show()
+            // Clearing can't be undone: the confirm button is in the error color.
+            .getButton(DialogInterface.BUTTON_POSITIVE)
+            ?.setTextColor(getColor(R.color.p_error))
     }
 
     // ---------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material has no "success" role, so the active status gets its own green container. -->
-    <color name="status_active_container">#FFC8EFD2</color>
+    <color name="status_active_container">#B3C8EFD2</color>
     <color name="status_on_active_container">#FF0A3A1C</color>
 
     <!-- The protection boxes: green when on, grey when off. -->
@@ -9,7 +9,7 @@
     <color name="feature_on_content">@color/status_on_active_container</color>
     <color name="feature_on_accent">#FF2F6B45</color>
     <color name="feature_on_on_accent">#FFFFFFFF</color>
-    <color name="feature_off_container">#FFE7E7E7</color>
+    <color name="feature_off_container">@color/glass_fill</color>
     <color name="feature_off_content">#FF1F1F1F</color>
     <color name="feature_off_content_variant">#FF5F5F5F</color>
     <color name="feature_off_accent">#FFCFCFCF</color>
@@ -22,7 +22,50 @@
     <color name="patreon_button">#FFFF424D</color>
     <color name="patreon_on_button">#FFFFFFFF</color>
 
-    <!-- Ko-fi's button, as on the developer's Ko-fi widget. -->
-    <color name="kofi_button">#FF72A4F2</color>
+    <!-- Ko-fi's button: Ko-fi's blue, a shade deeper so its white text stays readable (4.8:1). -->
+    <color name="kofi_button">#FF2F6FD8</color>
     <color name="kofi_on_button">#FFFFFFFF</color>
+
+    <!-- The glass look: its own palette in place of Material You, the backdrop glows, the frosted card fill and its bright edge, and one accent per kind of blocked attempt. -->
+    <color name="p_primary">#FF5B4BDB</color>
+    <color name="p_on_primary">#FFFFFFFF</color>
+    <color name="p_primary_container">#FFE4DFFF</color>
+    <color name="p_on_primary_container">#FF1A0F5C</color>
+    <color name="p_secondary">#FF5E5A7D</color>
+    <color name="p_on_secondary">#FFFFFFFF</color>
+    <color name="p_secondary_container">#FFE3DEFF</color>
+    <color name="p_on_secondary_container">#FF1B1838</color>
+    <color name="p_tertiary">#FFA0418A</color>
+    <color name="p_on_tertiary">#FFFFFFFF</color>
+    <color name="p_tertiary_container">#FFFFD7F0</color>
+    <color name="p_on_tertiary_container">#FF3B0033</color>
+    <color name="p_surface">#FFF4F3FB</color>
+    <color name="p_on_surface">#FF1B1A2E</color>
+    <color name="p_surface_variant">#FFE4E1F0</color>
+    <color name="p_on_surface_variant">#FF55536B</color>
+    <color name="p_outline">#FF79768F</color>
+    <color name="p_outline_variant">#FFC9C5D9</color>
+    <color name="p_container_lowest">#FFFFFFFF</color>
+    <color name="p_container_low">#FFF7F6FD</color>
+    <color name="p_container">#FFF1F0FA</color>
+    <color name="p_container_high">#FFECEAF6</color>
+    <color name="p_container_highest">#FFE6E4F2</color>
+    <color name="p_error">#FFBA1A1A</color>
+    <color name="p_on_error">#FFFFFFFF</color>
+    <color name="p_error_container">#FFFFDAD6</color>
+    <color name="p_on_error_container">#FF410002</color>
+    <color name="glass_base">#FFEEF0FB</color>
+    <color name="glass_glow_violet">#80A78BFA</color>
+    <color name="glass_glow_teal">#665EEAD4</color>
+    <color name="glass_glow_pink">#66F9A8D4</color>
+    <color name="glass_fill">#99FFFFFF</color>
+    <color name="glass_stroke">#E6FFFFFF</color>
+    <color name="glass_sheen">#40FFFFFF</color>
+    <color name="support_fill">#B3EFE8FF</color>
+    <color name="kind_unlock_bg">#FFFFD9DE</color>
+    <color name="kind_unlock_fg">#FF8C1D33</color>
+    <color name="kind_bio_bg">#FFFFE6B3</color>
+    <color name="kind_bio_fg">#FF7A4A00</color>
+    <color name="kind_block_bg">#FFE4DFFF</color>
+    <color name="kind_block_fg">#FF3B2BB0</color>
 </resources>

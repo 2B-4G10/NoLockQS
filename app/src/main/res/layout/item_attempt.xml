@@ -1,14 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One row of the blocked-attempts history. -->
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<!-- One row of the blocked-attempts history: an icon for what was tried, then what and when. Screen readers read the row as one. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:drawablePadding="12dp"
-    android:gravity="center_vertical|start"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
     android:paddingVertical="6dp"
-    android:textAppearance="?attr/textAppearanceBodyMedium"
-    app:drawableTint="?attr/colorPrimary"
-    tools:drawableStart="@drawable/ic_power_menu"
-    tools:text="Power menu · Nov 27, 3:12 AM" />
+    android:screenReaderFocusable="true">
+
+    <ImageView
+        android:id="@+id/attempt_icon"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/bg_icon_bubble"
+        android:importantForAccessibility="no"
+        android:padding="8dp"
+        tools:src="@drawable/ic_kind_fingerprint" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/attempt_kind"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceTitleSmall"
+            tools:text="Fingerprint not recognized" />
+
+        <TextView
+            android:id="@+id/attempt_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:text="Nov 27, 3:12 AM" />
+    </LinearLayout>
+</LinearLayout>

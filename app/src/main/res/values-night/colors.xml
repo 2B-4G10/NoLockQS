@@ -1,15 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material has no "success" role, so the active status gets its own green container. -->
-    <color name="status_active_container">#FF1D4E2C</color>
+    <color name="status_active_container">#5934A853</color>
     <color name="status_on_active_container">#FFBFF0CB</color>
 
     <!-- The protection boxes: green when on, grey when off. -->
     <color name="feature_on_accent">#FF95D5A8</color>
     <color name="feature_on_on_accent">#FF003920</color>
-    <color name="feature_off_container">#FF2A2A2A</color>
+    <color name="feature_off_container">@color/glass_fill</color>
     <color name="feature_off_content">#FFE6E6E6</color>
     <color name="feature_off_content_variant">#FFB4B4B4</color>
     <color name="feature_off_accent">#FF444444</color>
     <color name="feature_off_on_accent">#FFB4B4B4</color>
+
+    <!-- The glass look: its own palette in place of Material You, the backdrop glows, the frosted card fill and its bright edge, and one accent per kind of blocked attempt. -->
+    <color name="p_primary">#FFC6BFFF</color>
+    <color name="p_on_primary">#FF2A1C8F</color>
+    <color name="p_primary_container">#FF4334C2</color>
+    <color name="p_on_primary_container">#FFE4DFFF</color>
+    <color name="p_secondary">#FFC8C3E8</color>
+    <color name="p_on_secondary">#FF302D4C</color>
+    <color name="p_secondary_container">#FF3F3B63</color>
+    <color name="p_on_secondary_container">#FFE3DEFF</color>
+    <color name="p_tertiary">#FFFFADE4</color>
+    <color name="p_on_tertiary">#FF5E1150</color>
+    <color name="p_tertiary_container">#FF7F2A6C</color>
+    <color name="p_on_tertiary_container">#FFFFD7F0</color>
+    <color name="p_surface">#FF10101E</color>
+    <color name="p_on_surface">#FFECEAF8</color>
+    <color name="p_surface_variant">#FF2F2D42</color>
+    <color name="p_on_surface_variant">#FFBDB9D2</color>
+    <color name="p_outline">#FF8A86A0</color>
+    <color name="p_outline_variant">#FF3F3C52</color>
+    <color name="p_container_lowest">#FF0B0B16</color>
+    <color name="p_container_low">#FF17172A</color>
+    <color name="p_container">#FF1C1B2F</color>
+    <color name="p_container_high">#FF252438</color>
+    <color name="p_container_highest">#FF302F44</color>
+    <color name="p_error">#FFFFB4AB</color>
+    <color name="p_on_error">#FF690005</color>
+    <color name="p_error_container">#FF93000A</color>
+    <color name="p_on_error_container">#FFFFDAD6</color>
+    <color name="glass_base">#FF0B0C1A</color>
+    <color name="glass_glow_violet">#806D28D9</color>
+    <color name="glass_glow_teal">#550D9488</color>
+    <color name="glass_glow_pink">#55DB2777</color>
+    <color name="glass_fill">#1AFFFFFF</color>
+    <color name="glass_stroke">#2EFFFFFF</color>
+    <color name="glass_sheen">#1FFFFFFF</color>
+    <color name="support_fill">#337C5CFF</color>
+    <color name="kind_unlock_bg">#FF5A1F2C</color>
+    <color name="kind_unlock_fg">#FFFFB3C1</color>
+    <color name="kind_bio_bg">#FF4D3A12</color>
+    <color name="kind_bio_fg">#FFFFD58A</color>
+    <color name="kind_block_bg">#FF2F2A66</color>
+    <color name="kind_block_fg">#FFC6BFFF</color>
 </resources>
