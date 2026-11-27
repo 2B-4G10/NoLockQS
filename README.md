@@ -50,6 +50,18 @@ A thief who grabs a locked phone usually goes straight for the pull-down: airpla
 > [!IMPORTANT]
 > **Android 17** needs Magisk 31.0+ and a Vector canary (3112 or newer). Magisk 30.7 and Vector 2.2 stable don't load modules on Android 17.
 
+### 🧩 Other ROMs
+
+NoLockQS hooks Android's own (AOSP) System UI and the framework, so how well it works depends on how much a ROM has rebuilt them.
+
+| ROM | Status |
+|---|---|
+| Pixel stock firmware | ✅ Tested: a Pixel on Android 17, and Android 15, 16 and 17 emulators |
+| LineageOS, crDroid, Evolution X and other AOSP-based ROMs | 🟡 Should work: same System UI code, not yet tested on a real device |
+| Samsung One UI, Xiaomi HyperOS / MIUI, OPPO ColorOS, OnePlus OxygenOS, vivo OriginOS | ❌ Not supported: they replace the Quick Settings panel with their own, which NoLockQS likely doesn't reach |
+
+On a ROM that isn't a Pixel, check that the pull-down really stays shut while locked, and send the **Diagnostics report** if it doesn't. It lists which protections hooked on your phone.
+
 ## 🚀 Installation
 
 1. Download the APK from the [latest release](https://github.com/Xposed-Modules-Repo/io.github.i2B4G10.NoLockQS/releases/latest) and install it.
