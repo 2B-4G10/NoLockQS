@@ -1,0 +1,126 @@
+name: No AI traces and secrets
+
+# One quick job on every pull request and every push to main. It fails when
+# - a commit in the change has an AI author or committer, an AI Co-Authored-By trailer, a
+#   Claude-Session trailer, a "Generated with Claude Code" footer or a merge from a claude/ branch;
+# - an AI-agent file is tracked (CLAUDE.md, AGENTS.md, .mcp.json, .cursorrules, .claude/,
+#   .claude-plugin/, .swarm/, .claude-flow/);
+# - a tracked file looks like a secret: a keystore or key file, local.properties, a .env file, a
+#   private key block or a token-shaped string. End a deliberate example line with
+#   "secret-scan: allow".
+# An AI footer in a pull request's description only gets a warning: it never reaches the history.
+# It uses no actions (plain git and Python), so it runs whatever the repository's Actions policy.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request cancels the older run; pushes each get their own group.
+concurrency:
+  group: repo-checks-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (AI traces, secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      TOKEN: ${{ github.token }}
+      EVENT: ${{ github.event_name }}
+      PR_BASE: ${{ github.event.pull_request.base.sha }}
+      PR_HEAD: ${{ github.event.pull_request.head.sha }}
+      BEFORE: ${{ github.event.before }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+    steps:
+      - name: Fetch the change
+        run: |
+          set -euo pipefail
+          git init -q repo && cd repo
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git config http.extraheader "AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          if [ "$EVENT" = pull_request ]; then head=$PR_HEAD; base=$PR_BASE; else head=$GITHUB_SHA; base=$BEFORE; fi
+          git fetch -q --no-tags --filter=blob:none origin "$head"
+          range="$head~1..$head"
+          if [ -n "$base" ] && [ "$base" != 0000000000000000000000000000000000000000 ] \
+             && git fetch -q --no-tags --filter=blob:none origin "$base" 2>/dev/null; then
+            range="$base..$head"
+          fi
+          git rev-parse -q --verify "$head~1" >/dev/null || range="$head"
+          git checkout -q --detach "$head"
+          echo "RANGE=$range" >> "$GITHUB_ENV"
+
+      - name: Check commits, files and secrets
+        working-directory: repo
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess, sys
+          from pathlib import Path
+
+          AI = r"claude|anthropic|copilot|cursor|chatgpt|openai|codex|devin|gemini"
+          AI_PEOPLE = re.compile(AI, re.I)
+          AI_LINE = re.compile(r"^\s*(?:co-authored-by:.*(?:%s)|claude-session:|.*generated (?:with|by) \[claude code\]\(|.*claude\.ai/code|merge .*\bfrom \S+/claude/)" % AI, re.I)
+          AI_FILES = re.compile(r"^(CLAUDE\.md|AGENTS\.md|\.mcp\.json|\.cursorrules)$|^\.(claude|claude-plugin|swarm)/|(^|/)\.claude-flow/")
+          BAD_NAMES = [
+              (re.compile(r"(^|/)[^/]+\.(jks|keystore|p12|pfx)$", re.I), "signing keystore"),
+              (re.compile(r"(^|/)[^/]+\.(pem|key)$", re.I), "key file"),
+              (re.compile(r"(^|/)local\.properties$"), "Android local.properties"),
+              (re.compile(r"(^|/)\.env(\.[\w-]+)?$"), ".env file"),
+              (re.compile(r"(^|/)id_(rsa|ed25519|ecdsa)$"), "SSH private key"),
+          ]
+          NAME_OK = re.compile(r"(^|/)\.env\.(example|sample|template)$|(^|/)example\.env$")
+          TOKENS = [
+              (re.compile(r"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----"), "private key block"),
+              (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b"), "GitHub token"),
+              (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{60,}\b"), "GitHub fine-grained token"),
+              (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS access key"),
+              (re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "Google API key"),
+              (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"), "Slack token"),
+              (re.compile(r"\bhf_[A-Za-z0-9]{34,}\b"), "Hugging Face token"),
+              (re.compile(r"\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{32,}\b"), "API secret key"),
+          ]
+          ALLOW = "secret-scan: allow"
+
+          def git(*a):
+              return subprocess.run(["git", *a], check=True, capture_output=True, text=True).stdout
+
+          errors = []
+          log = git("log", "--format=%H%x00%an <%ae>%x00%cn <%ce>%x00%B%x01", os.environ["RANGE"])
+          for entry in filter(None, (e.strip("\n") for e in log.split("\x01"))):
+              sha, author, committer, body = entry.split("\0", 3)
+              for who in {author, committer}:
+                  if AI_PEOPLE.search(who):
+                      errors.append(f"commit {sha[:9]}: AI identity {who}")
+              for line in body.splitlines():
+                  if AI_LINE.match(line):
+                      errors.append(f"commit {sha[:9]}: {line.strip()}")
+
+          files = [p for p in git("ls-files", "-z").split("\0") if p]
+          for rel in files:
+              if AI_FILES.search(rel):
+                  errors.append(f"{rel}: AI-agent file")
+              if not NAME_OK.search(rel):
+                  errors += [f"{rel}: {what}" for pattern, what in BAD_NAMES if pattern.search(rel)]
+              path = Path(rel)
+              if not path.is_file() or path.is_symlink() or path.stat().st_size > 2_000_000:
+                  continue
+              data = path.read_bytes()
+              if b"\0" in data[:8192]:
+                  continue
+              for n, line in enumerate(data.decode("utf-8", "replace").splitlines(), 1):
+                  if ALLOW not in line:
+                      errors += [f"{rel}:{n}: {what}" for pattern, what in TOKENS if pattern.search(line)]
+
+          if os.environ.get("EVENT") == "pull_request":
+              body = os.environ.get("PR_BODY") or ""
+              if re.search(r"generated (with|by) \[claude code\]\(|claude\.ai/code|co-authored-by:.*(claude|anthropic)", body, re.I):
+                  print("::warning::The pull request description has an AI attribution line; remove it.")
+
+          for e in errors:
+              print(f"::error::{e}")
+          print(f"{len(errors)} problem(s) in {len(files)} files and the commits {os.environ['RANGE']}.")
+          sys.exit(1 if errors else 0)
+          PY
