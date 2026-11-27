@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A white coffee cup with a red heart, like the cup on Ko-fi's button. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Cup with handle -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,5h14v7c0,3.31 -2.69,6 -6,6h-2c-3.31,0 -6,-2.69 -6,-6V5zM17,7h1.5c1.93,0 3.5,1.57 3.5,3.5S20.43,14 18.5,14H17v-2h1.5c0.83,0 1.5,-0.67 1.5,-1.5S19.33,9 18.5,9H17V7z" />
+    <!-- Heart -->
+    <path
+        android:fillColor="#FFFF5E5B"
+        android:pathData="M10,15.2l-0.7,-0.64C7.2,12.66 6,11.58 6,10.25 6,9.17 6.85,8.33 7.92,8.33c0.6,0 1.18,0.28 1.56,0.73L10,9.66l0.52,-0.6c0.38,-0.45 0.96,-0.73 1.56,-0.73 1.07,0 1.92,0.84 1.92,1.92 0,1.33 -1.2,2.41 -3.3,4.31L10,15.2z" />
+</vector>
