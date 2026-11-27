@@ -32,6 +32,7 @@ A thief who grabs a locked phone usually goes straight for the pull-down: airpla
 | 🔔 **Alerts and history** | Each blocked attempt is kept in the app with its time, and a silent alert tells you once you unlock. It never shows on the lock screen, so whoever holds the phone isn't warned. **Clear history** wipes it. |
 | 🕵️ **Failed unlocks logged** | A wrong PIN, pattern or password, or a fingerprint or face that isn't recognized, lands in the same history and alert. Only the time and the kind are kept, never what was entered. |
 | 🩺 **Diagnostics in one tap** | Lists your device, which protections are hooked and, with root, NoLockQS's own log, ready to copy or share when something isn't right. |
+| 🌓 **Light, dark or same as device** | Pick the app's theme: **Same as device** (follows your phone's dark theme as it changes), **Light** or **Dark**. It applies at once and keeps your Material You colors.
 | 🌍 **English, العربية, 简体中文** | Full Arabic with a right-to-left layout, and Simplified Chinese. Follows the phone, or pick it in Android's per-app language settings. |
 | 🔒 **Private by design** | No internet permission, no tracking. Everything, the history too, stays on your phone. |
 

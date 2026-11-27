@@ -113,6 +113,7 @@ class MainActivity : AppCompatActivity() {
             ),
         )
         features.forEach(::setUpFeature)
+        setUpTheme()
 
         binding.alertsRow.setOnClickListener { toggleAlerts() }
         binding.clearHistory.setOnClickListener { confirmClearHistory() }
@@ -121,6 +122,21 @@ class MainActivity : AppCompatActivity() {
         // Alerts are on by default, so ask for the notification permission they need once.
         if (savedInstanceState == null && attemptLog.alertsEnabled && !canNotify() && !savedSwitches.getBoolean(KEY_ASKED_NOTIFICATIONS, false)) {
             askForNotifications()
+        }
+    }
+
+    /** The theme switch: picking an option saves it and redraws the app in it at once. */
+    private fun setUpTheme() {
+        val buttons = mapOf(
+            AppTheme.SYSTEM to binding.themeSystem,
+            AppTheme.LIGHT to binding.themeLight,
+            AppTheme.DARK to binding.themeDark,
+        )
+        binding.themeGroup.check(buttons.getValue(AppTheme.get(this)).id)
+        binding.themeGroup.addOnButtonCheckedListener { _, id, checked ->
+            if (!checked) return@addOnButtonCheckedListener
+            val theme = buttons.entries.first { it.value.id == id }.key
+            if (theme != AppTheme.get(this)) AppTheme.set(this, theme)
         }
     }
 

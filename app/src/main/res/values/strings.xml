@@ -70,6 +70,12 @@
         <item quantity="other">%1$d blocked attempts since you last checked, the latest at %2$s.</item>
     </plurals>
 
+    <string name="theme_header">Appearance</string>
+    <string name="theme_title">Theme</string>
+    <string name="theme_system">Same as device</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
     <string name="diagnostics_header">Troubleshooting</string>
     <string name="diagnostics_title">Diagnostics report</string>
     <string name="diagnostics_body">Lists your device, which protections are hooked and, with root, NoLockQS\'s own log. Nothing personal is included. Share it when you report a problem.</string>
