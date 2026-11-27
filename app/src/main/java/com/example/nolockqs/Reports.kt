@@ -27,6 +27,19 @@ object Reports {
     const val KIND_POWER_MENU = "power_menu"
     const val KIND_QUICK_SETTINGS = "quick_settings"
 
+    /**
+     * Failed unlocks on the lock screen. Only the kind and the time are ever sent: never what was
+     * entered, nor how long it was.
+     */
+    const val KIND_WRONG_PIN = "wrong_pin"
+    const val KIND_WRONG_PATTERN = "wrong_pattern"
+    const val KIND_WRONG_PASSWORD = "wrong_password"
+    const val KIND_FAILED_FINGERPRINT = "failed_fingerprint"
+    const val KIND_FAILED_FACE = "failed_face"
+
+    /** The failed-unlock kinds, which the history shows with a lock icon. */
+    val FAILED_UNLOCK_KINDS = setOf(KIND_WRONG_PIN, KIND_WRONG_PATTERN, KIND_WRONG_PASSWORD, KIND_FAILED_FINGERPRINT, KIND_FAILED_FACE)
+
     const val PROCESS_SYSTEM_UI = "system_ui"
     const val PROCESS_SYSTEM_SERVER = "system_server"
 

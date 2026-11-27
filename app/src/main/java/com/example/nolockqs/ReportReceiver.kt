@@ -44,9 +44,21 @@ class ReportReceiver : BroadcastReceiver() {
         fun kindLabel(context: Context, kind: String): String = context.getString(
             when (kind) {
                 Reports.KIND_POWER_MENU -> R.string.feature_power_title
+                Reports.KIND_WRONG_PIN -> R.string.kind_wrong_pin
+                Reports.KIND_WRONG_PATTERN -> R.string.kind_wrong_pattern
+                Reports.KIND_WRONG_PASSWORD -> R.string.kind_wrong_password
+                Reports.KIND_FAILED_FINGERPRINT -> R.string.kind_failed_fingerprint
+                Reports.KIND_FAILED_FACE -> R.string.kind_failed_face
                 else -> R.string.feature_qs_title
             },
         )
+
+        /** The history icon of a [Reports] KIND_ value. */
+        fun kindIcon(kind: String): Int = when (kind) {
+            Reports.KIND_POWER_MENU -> R.drawable.ic_power_menu
+            in Reports.FAILED_UNLOCK_KINDS -> R.drawable.ic_lock_failed
+            else -> R.drawable.ic_quick_settings
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -70,11 +82,16 @@ class ReportReceiver : BroadcastReceiver() {
         if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         createChannel(context)
         val at = DateFormat.getTimeFormat(context).format(Date(time))
-        val title = context.getString(R.string.alert_title, kindLabel(context, kind))
-        val text = if (unseen > 1) {
-            context.resources.getQuantityString(R.plurals.alert_text_many, unseen, unseen, at)
+        val failedUnlock = kind in Reports.FAILED_UNLOCK_KINDS
+        val title = if (failedUnlock) {
+            context.getString(R.string.alert_title_unlock, kindLabel(context, kind))
         } else {
-            context.getString(R.string.alert_text_one, at)
+            context.getString(R.string.alert_title, kindLabel(context, kind))
+        }
+        val text = when {
+            unseen > 1 -> context.resources.getQuantityString(R.plurals.alert_text_many, unseen, unseen, at)
+            failedUnlock -> context.getString(R.string.alert_text_unlock, at)
+            else -> context.getString(R.string.alert_text_one, at)
         }
         val open = PendingIntent.getActivity(
             context, 0,

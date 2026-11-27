@@ -17,7 +17,7 @@ Built on the modern Xposed API (libxposed 101+); Not tied to a specific Pixel mo
 ## ✨ Features
 - 🧱 **Quick Settings locked away** while the phone is locked: no tiles, no toggles, while notifications still open and expand
 - ⏻ **Power menu blocked** on the lock screen, so a locked phone can't be switched off from it
-- 🔔 **Blocked-attempt alerts** after you unlock, plus a history of every attempt in the app, with a button to clear it
+- 🔔 **Blocked-attempt and failed-unlock alerts** after you unlock (wrong PIN, pattern, password, fingerprint or face; never what was entered), plus a history of every attempt in the app, with a button to clear it
 - 🩺 **Diagnostics report** in one tap, to share when something isn't right
 - 🌍 English, العربية and 简体中文
 

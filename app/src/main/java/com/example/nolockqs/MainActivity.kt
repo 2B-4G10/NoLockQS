@@ -338,7 +338,7 @@ class MainActivity : AppCompatActivity() {
         binding.attemptsList.removeAllViews()
         attempts.take(ATTEMPTS_SHOWN).forEach { attempt ->
             val row = layoutInflater.inflate(R.layout.item_attempt, binding.attemptsList, false) as TextView
-            val icon = if (attempt.kind == Reports.KIND_POWER_MENU) R.drawable.ic_power_menu else R.drawable.ic_quick_settings
+            val icon = ReportReceiver.kindIcon(attempt.kind)
             row.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
             TextViewCompat.setCompoundDrawableTintList(row, getColorStateList(R.color.attempt_icon))
             val at = DateUtils.formatDateTime(

@@ -31,9 +31,9 @@
 
     <string name="attempts_header">المحاولات المحظورة</string>
     <string name="alerts_title">نبّهني</string>
-    <string name="alerts_body">استلم إشعاراً بعد كل محاولة محظورة. الإشعار بلا صوت ولا يظهر على شاشة القفل، فتراه بعد فتح هاتفك.</string>
+    <string name="alerts_body">استلم إشعاراً بعد كل محاولة محظورة أو محاولة فتح فاشلة. الإشعار بلا صوت ولا يظهر على شاشة القفل، فتراه بعد فتح هاتفك.</string>
     <string name="alerts_body_no_permission">التنبيهات مفعّلة، لكن NoLockQS غير مسموح له بإرسال الإشعارات. اسمح بها من إعدادات أندرويد الخاصة بـ NoLockQS.</string>
-    <string name="attempts_empty">لا توجد محاولات محظورة بعد. كلما رُفضت قائمة التشغيل أو الإعدادات السريعة أثناء قفل هاتفك، ستظهر هنا.</string>
+    <string name="attempts_empty">لا توجد محاولات محظورة بعد. كلما رُفضت قائمة التشغيل أو الإعدادات السريعة، أو فشل أحدهم في فتح هاتفك برمز PIN أو نمط أو كلمة مرور أو بصمة أو وجه غير صحيح، ستظهر هنا.</string>
     <plurals name="attempts_summary">
         <item quantity="zero">لا توجد محاولات محظورة:</item>
         <item quantity="one">محاولة محظورة واحدة:</item>
@@ -65,6 +65,13 @@
     <string name="alerts_channel_description">بعد رفض قائمة التشغيل أو الإعدادات السريعة أثناء قفل هاتفك.</string>
     <string name="alert_title">تم حظر %1$s</string>
     <string name="alert_text_one">حاول أحدهم فتحها الساعة %1$s أثناء قفل هاتفك.</string>
+    <string name="kind_wrong_pin">رمز PIN غير صحيح</string>
+    <string name="kind_wrong_pattern">نمط غير صحيح</string>
+    <string name="kind_wrong_password">كلمة مرور غير صحيحة</string>
+    <string name="kind_failed_fingerprint">لم يتم التعرّف على البصمة</string>
+    <string name="kind_failed_face">لم يتم التعرّف على الوجه</string>
+    <string name="alert_title_unlock">%1$s على شاشة القفل</string>
+    <string name="alert_text_unlock">فشل أحدهم في فتح هاتفك الساعة %1$s. لا يُسجَّل أبداً ما أدخله.</string>
     <plurals name="alert_text_many">
         <item quantity="zero">لا محاولات محظورة منذ آخر مرة، آخرها الساعة %2$s.</item>
         <item quantity="one">محاولة محظورة واحدة منذ آخر مرة تحققت فيها، الساعة %2$s.</item>
