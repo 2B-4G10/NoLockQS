@@ -116,15 +116,18 @@ class NoLockXposedModule : XposedModule() {
         /**
          * Failed unlocks on the lock screen. A wrong PIN, pattern or password reaches the framework
          * through `LockPatternUtils.reportFailedPasswordAttempt(userId)` in System UI. A fingerprint
-         * or face that isn't recognized reaches System UI's own FingerprintManager or FaceManager,
-         * which hands it on in `sendAuthenticatedFailed()` (System UI only authenticates for the
-         * lock screen; an app's biometric prompt reports to that app), and on older builds also
-         * passes `KeyguardUpdateMonitor`. Only the fact and the time are reported, never the credential.
+         * or face that isn't recognized reaches System UI's own FingerprintManager or FaceManager
+         * through their binder receivers' `onAuthenticationFailed()` (Android 17), or their
+         * `sendAuthenticatedFailed()` before that. System UI only authenticates for the lock
+         * screen; an app's biometric prompt reports to that app. Older builds also pass
+         * `KeyguardUpdateMonitor`. Only the fact and the time are reported, never the credential.
          */
         val FAILED_UNLOCK_EVENTS = mapOf(
             "com.android.internal.widget.LockPatternUtils" to setOf("reportFailedPasswordAttempt"),
             "android.hardware.fingerprint.FingerprintManager" to setOf("sendAuthenticatedFailed"),
+            "android.hardware.fingerprint.FingerprintManager\$FingerprintServiceReceiver" to setOf("onAuthenticationFailed"),
             "android.hardware.face.FaceManager" to setOf("sendAuthenticatedFailed"),
+            "android.hardware.face.FaceManager\$FaceServiceReceiver" to setOf("onAuthenticationFailed"),
             "com.android.keyguard.KeyguardUpdateMonitor" to setOf("handleFingerprintAuthFailed", "handleFaceAuthFailed"),
         )
 
@@ -502,9 +505,9 @@ class NoLockXposedModule : XposedModule() {
                 if (!isKeyguardLocked(guardContext ?: systemContext())) return@runCatching
                 val owner = chain.executable.declaringClass.name
                 val kind = when {
-                    owner.endsWith("FingerprintManager") || chain.executable.name == "handleFingerprintAuthFailed" ->
+                    "FingerprintManager" in owner || chain.executable.name == "handleFingerprintAuthFailed" ->
                         Reports.KIND_FAILED_FINGERPRINT
-                    owner.endsWith("FaceManager") || chain.executable.name == "handleFaceAuthFailed" -> Reports.KIND_FAILED_FACE
+                    "FaceManager" in owner || chain.executable.name == "handleFaceAuthFailed" -> Reports.KIND_FAILED_FACE
                     else -> credentialKind(chain.thisObject, chain.args.firstOrNull() as? Int)
                 }
                 reportBlocked(kind, FAILED_UNLOCK_DEBOUNCE_MS)
