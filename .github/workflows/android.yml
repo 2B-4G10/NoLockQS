@@ -117,6 +117,15 @@ jobs:
           NOLOCKQS_KEY_PASSWORD: ${{ secrets.NOLOCKQS_KEY_PASSWORD }}
         run: .github/scripts/gradle.sh :app:assembleDebug :app:assembleRelease --stacktrace
 
+      # Android lint: an error fails the run (and so holds back a release); warnings only show in
+      # the log. The full report is printed when it fails.
+      - name: Lint
+        run: |
+          if ! .github/scripts/gradle.sh :app:lintDebug; then
+            cat app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt 2>/dev/null || true
+            exit 1
+          fi
+
       # The release is named exactly like its tag, and the APK carries the same name. Its notes are
       # the version's section in CHANGELOG.md (or, without one, made from its commits), laid out by
       # .github/scripts/release-notes.sh, which the Xposed Modules Repository's release uses too.
