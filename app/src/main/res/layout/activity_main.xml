@@ -354,18 +354,20 @@
                             app:iconSize="18dp"
                             app:iconTint="?attr/colorOnTertiary" />
 
+                        <!-- In the colors of Ko-fi's own "Support me on Ko-fi" button. -->
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/kofi_button"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/kofi_button"
-                            android:textColor="?attr/colorOnTertiaryContainer"
-                            app:icon="@drawable/ic_open_in_new"
-                            app:iconGravity="textEnd"
-                            app:iconSize="18dp"
-                            app:iconTint="?attr/colorOnTertiaryContainer"
-                            app:strokeColor="?attr/colorTertiary" />
+                            android:textColor="@color/kofi_on_button"
+                            android:textStyle="bold"
+                            app:backgroundTint="@color/kofi_button"
+                            app:icon="@drawable/ic_kofi_cup"
+                            app:iconGravity="textStart"
+                            app:iconSize="20dp"
+                            app:iconTint="@null" />
                     </androidx.constraintlayout.widget.ConstraintLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

@@ -72,7 +72,7 @@
     <string name="support_title">支持 NoLockQS</string>
     <string name="support_body">如果 NoLockQS 让您的手机更安全，欢迎在 Patreon 或 Ko-fi 上支持它的开发。</string>
     <string name="support_button">在 Patreon 上支持</string>
-    <string name="kofi_button">在 Ko-fi 上支持</string>
+    <string name="kofi_button">在 Ko-fi 上支持我</string>
     <string name="no_browser">未找到可打开链接的浏览器。</string>
 
     <string name="compatibility_info">适用于已 Root、Android 15 或更高版本的手机：Pixel，以及系统界面接近原生（AOSP）的 ROM。</string>
