@@ -68,4 +68,7 @@
     <color name="kind_bio_fg">#FF7A4A00</color>
     <color name="kind_block_bg">#FFE4DFFF</color>
     <color name="kind_block_fg">#FF3B2BB0</color>
+    <!-- Header logo (ic_header_logo) -->
+    <color name="logo_glyph">#FF3E5C7B</color>
+    <color name="logo_ring">#FFDD0E1C</color>
 </resources>
