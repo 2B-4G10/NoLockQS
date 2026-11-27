@@ -90,8 +90,9 @@
     <string name="developer_link_description">افتح صفحة المطوّر على GitHub</string>
 
     <string name="support_title">ادعم NoLockQS</string>
-    <string name="support_body">إذا كان NoLockQS يجعل هاتفك أكثر أماناً، يمكنك دعم تطويره على Patreon.</string>
+    <string name="support_body">إذا كان NoLockQS يجعل هاتفك أكثر أماناً، يمكنك دعم تطويره على Patreon أو Ko-fi.</string>
     <string name="support_button">ادعم على Patreon</string>
+    <string name="kofi_button">ادعم على Ko-fi</string>
     <string name="no_browser">لم يُعثر على متصفح لفتح الرابط.</string>
 
     <string name="compatibility_info">يعمل على الهواتف المروّتة بأندرويد 15 أو أحدث: هواتف Pixel، والرومات ذات واجهة النظام القريبة من الأصلية (AOSP).</string>

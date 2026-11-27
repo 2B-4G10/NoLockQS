@@ -322,19 +322,51 @@
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?attr/colorOnTertiaryContainer" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/patreon_button"
-                        style="@style/Widget.Material3.Button"
-                        android:layout_width="wrap_content"
+                    <!-- The two ways to support, side by side, wrapping onto two lines when they don't fit. -->
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="@string/support_button"
-                        android:textColor="?attr/colorOnTertiary"
-                        app:backgroundTint="?attr/colorTertiary"
-                        app:icon="@drawable/ic_open_in_new"
-                        app:iconGravity="textEnd"
-                        app:iconSize="18dp"
-                        app:iconTint="?attr/colorOnTertiary" />
+                        android:layout_marginTop="16dp">
+
+                        <androidx.constraintlayout.helper.widget.Flow
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:constraint_referenced_ids="patreon_button,kofi_button"
+                            app:flow_horizontalBias="0"
+                            app:flow_horizontalGap="8dp"
+                            app:flow_horizontalStyle="packed"
+                            app:flow_verticalGap="4dp"
+                            app:flow_wrapMode="chain"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/patreon_button"
+                            style="@style/Widget.Material3.Button"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/support_button"
+                            android:textColor="?attr/colorOnTertiary"
+                            app:backgroundTint="?attr/colorTertiary"
+                            app:icon="@drawable/ic_open_in_new"
+                            app:iconGravity="textEnd"
+                            app:iconSize="18dp"
+                            app:iconTint="?attr/colorOnTertiary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/kofi_button"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/kofi_button"
+                            android:textColor="?attr/colorOnTertiaryContainer"
+                            app:icon="@drawable/ic_open_in_new"
+                            app:iconGravity="textEnd"
+                            app:iconSize="18dp"
+                            app:iconTint="?attr/colorOnTertiaryContainer"
+                            app:strokeColor="?attr/colorTertiary" />
+                    </androidx.constraintlayout.widget.ConstraintLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
