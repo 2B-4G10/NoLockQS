@@ -81,6 +81,12 @@
         <item quantity="other">%1$d محاولة محظورة منذ آخر مرة تحققت فيها، آخرها الساعة %2$s.</item>
     </plurals>
 
+    <string name="theme_header">المظهر</string>
+    <string name="theme_title">السمة</string>
+    <string name="theme_system">مثل الجهاز</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_dark">داكن</string>
+
     <string name="diagnostics_header">استكشاف الأخطاء</string>
     <string name="diagnostics_title">تقرير التشخيص</string>
     <string name="diagnostics_body">يعرض جهازك والحمايات المثبّتة، ومع صلاحيات الروت سجل NoLockQS الخاص. لا يتضمن أي بيانات شخصية. شاركه عند الإبلاغ عن مشكلة.</string>

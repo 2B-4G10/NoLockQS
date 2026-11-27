@@ -61,6 +61,12 @@
         <item quantity="other">自上次查看以来已拦截 %1$d 次尝试，最近一次在 %2$s。</item>
     </plurals>
 
+    <string name="theme_header">外观</string>
+    <string name="theme_title">主题</string>
+    <string name="theme_system">跟随设备</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+
     <string name="diagnostics_header">故障排查</string>
     <string name="diagnostics_title">诊断报告</string>
     <string name="diagnostics_body">列出您的设备信息、已挂钩的保护项，以及（获得 Root 权限时）NoLockQS 自身的日志。不包含任何个人信息。报告问题时请分享它。</string>

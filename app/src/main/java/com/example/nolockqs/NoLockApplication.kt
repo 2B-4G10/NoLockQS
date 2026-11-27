@@ -31,6 +31,7 @@ class NoLockApplication : Application(), XposedServiceHelper.OnServiceListener {
 
     override fun onCreate() {
         super.onCreate()
+        AppTheme.apply(this)
         XposedServiceHelper.registerListener(this)
     }
 
