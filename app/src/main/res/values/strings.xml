@@ -33,9 +33,9 @@
 
     <string name="attempts_header">Blocked attempts</string>
     <string name="alerts_title">Alert me</string>
-    <string name="alerts_body">Get a notification after each blocked attempt. It makes no sound and never shows on the lock screen, so you see it once you unlock.</string>
+    <string name="alerts_body">Get a notification after each blocked attempt or failed unlock. It makes no sound and never shows on the lock screen, so you see it once you unlock.</string>
     <string name="alerts_body_no_permission">Alerts are on, but NoLockQS isn\'t allowed to send notifications. Allow them in Android\'s settings for NoLockQS.</string>
-    <string name="attempts_empty">No blocked attempts yet. Each time the power menu or Quick Settings is refused while your phone is locked, it shows up here.</string>
+    <string name="attempts_empty">No blocked attempts yet. Each time the power menu or Quick Settings is refused, or someone fails to unlock your phone with a wrong PIN, pattern, password, fingerprint or face, it shows up here.</string>
     <plurals name="attempts_summary">
         <item quantity="one">%1$d blocked attempt:</item>
         <item quantity="other">%1$d blocked attempts:</item>
@@ -58,6 +58,13 @@
     <!-- %1$s is "Power menu" or "Quick Settings". -->
     <string name="alert_title">%1$s blocked</string>
     <string name="alert_text_one">Someone tried to open it at %1$s while your phone was locked.</string>
+    <string name="kind_wrong_pin">Wrong PIN</string>
+    <string name="kind_wrong_pattern">Wrong pattern</string>
+    <string name="kind_wrong_password">Wrong password</string>
+    <string name="kind_failed_fingerprint">Fingerprint not recognized</string>
+    <string name="kind_failed_face">Face not recognized</string>
+    <string name="alert_title_unlock">%1$s on the lock screen</string>
+    <string name="alert_text_unlock">Someone failed to unlock your phone at %1$s. What they entered is never recorded.</string>
     <plurals name="alert_text_many">
         <item quantity="one">%1$d blocked attempt since you last checked, the latest at %2$s.</item>
         <item quantity="other">%1$d blocked attempts since you last checked, the latest at %2$s.</item>

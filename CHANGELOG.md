@@ -7,11 +7,12 @@ A release without a section gets notes made from its commits.
 
 ## v2.9 · 2026-11-27
 
-> Know when someone tries your locked phone, troubleshoot in one tap, and use NoLockQS in Arabic or Chinese.
+> Know when someone tries your locked phone or its lock, troubleshoot in one tap, and use NoLockQS in Arabic or Chinese.
 
 ### ✨ Highlights
 
 - **Blocked-attempt alerts.** When the power menu or Quick Settings is refused on a locked phone, NoLockQS tells you once you unlock. The alert makes no sound and never shows on the lock screen, so whoever holds the phone isn't warned. Turn it off any time under **Blocked attempts → Alert me**.
+- **Failed unlock alerts.** A wrong PIN, pattern or password on the lock screen, or a fingerprint or face that isn't recognized, is logged and alerted the same way. Only the time and the kind are kept, never what was entered.
 - **Attempt history.** Every blocked attempt is kept in the app with its time, the newest first, and **Clear history** wipes it. Attempts made before the first unlock after a restart are kept too.
 - **Diagnostics report.** One tap lists your device, which protections are hooked and, with root, NoLockQS's own log, ready to share or copy when you report a problem. Nothing personal is included.
 - **العربية and 简体中文.** The app now speaks Arabic, with a right-to-left layout, and Simplified Chinese. Pick the language in Android's per-app language settings, or let it follow the phone.

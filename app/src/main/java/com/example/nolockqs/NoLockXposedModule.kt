@@ -110,6 +110,24 @@ class NoLockXposedModule : XposedModule() {
         /** The same blocked attempt seen again within this window counts once. */
         const val REPORT_DEBOUNCE_MS = 3000L
 
+        /** Failed unlocks are each worth a line, but one touch can fail a fingerprint twice. */
+        const val FAILED_UNLOCK_DEBOUNCE_MS = 1000L
+
+        /**
+         * Failed unlocks on the lock screen. A wrong PIN, pattern or password reaches the framework
+         * through `LockPatternUtils.reportFailedPasswordAttempt(userId)` in System UI; a fingerprint
+         * or face that isn't recognized through `KeyguardUpdateMonitor`. Only the fact and the
+         * time are reported, never the credential.
+         */
+        val FAILED_UNLOCK_EVENTS = mapOf(
+            "com.android.internal.widget.LockPatternUtils" to setOf("reportFailedPasswordAttempt"),
+            "com.android.keyguard.KeyguardUpdateMonitor" to setOf("handleFingerprintAuthFailed", "handleFaceAuthFailed"),
+        )
+
+        /** `LockPatternUtils.CREDENTIAL_TYPE_*` values. */
+        const val CREDENTIAL_TYPE_PATTERN = 1
+        const val CREDENTIAL_TYPE_PIN = 3
+
         /** system_server reports its hooks once boot completes; it checks this often, this many times. */
         const val STATUS_RETRY_MS = 15_000L
         const val STATUS_RETRIES = 60
@@ -251,6 +269,7 @@ class NoLockXposedModule : XposedModule() {
                 installHooks(param.classLoader, QUICK_SETTINGS_REQUESTS, quickSettingsRequestHooker, "Quick Settings requests")
                 installHooks(param.classLoader, SHADE_SCRIM, shadeScrimHooker, "Shade background")
                 installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)", everyRelease = true)
+                installHooks(param.classLoader, FAILED_UNLOCK_EVENTS, failedUnlockHooker, "Failed unlocks")
             }
             moduleApplicationInfo.packageName -> installModuleStatusHook(param.classLoader)
         }
@@ -442,6 +461,39 @@ class NoLockXposedModule : XposedModule() {
             }
             onKeyguardEvent()
             return result
+        }
+    }
+
+    /**
+     * Reports a failed unlock on the lock screen; the call itself runs on unchanged. Its arguments
+     * hold no credential (a user id at most), and nothing of them is kept or sent.
+     */
+    private val failedUnlockHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val result = chain.proceed()
+            runCatching {
+                if (!isKeyguardLocked(guardContext ?: systemContext())) return@runCatching
+                val kind = when (chain.executable.name) {
+                    "handleFingerprintAuthFailed" -> Reports.KIND_FAILED_FINGERPRINT
+                    "handleFaceAuthFailed" -> Reports.KIND_FAILED_FACE
+                    else -> credentialKind(chain.thisObject, chain.args.firstOrNull() as? Int)
+                }
+                reportBlocked(kind, FAILED_UNLOCK_DEBOUNCE_MS)
+            }
+            return result
+        }
+    }
+
+    /** Which kind of credential the user has, from `LockPatternUtils.getCredentialTypeForUser`. */
+    private fun credentialKind(lockPatternUtils: Any?, userId: Int?): String {
+        val type = runCatching {
+            lockPatternUtils!!.javaClass.getMethod("getCredentialTypeForUser", Int::class.javaPrimitiveType)
+                .invoke(lockPatternUtils, userId ?: 0) as Int
+        }.getOrNull()
+        return when (type) {
+            CREDENTIAL_TYPE_PATTERN -> Reports.KIND_WRONG_PATTERN
+            CREDENTIAL_TYPE_PIN -> Reports.KIND_WRONG_PIN
+            else -> Reports.KIND_WRONG_PASSWORD
         }
     }
 
@@ -637,10 +689,10 @@ class NoLockXposedModule : XposedModule() {
     // ---------------------------------------------------------------------------------------
 
     /** Tells the app a protection refused [kind] while locked; a burst of the same kind counts once. */
-    private fun reportBlocked(kind: String) {
+    private fun reportBlocked(kind: String, debounceMs: Long = REPORT_DEBOUNCE_MS) {
         val now = SystemClock.elapsedRealtime()
         val last = lastReported[kind]
-        if (last != null && now - last < REPORT_DEBOUNCE_MS) return
+        if (last != null && now - last < debounceMs) return
         lastReported[kind] = now
         val time = System.currentTimeMillis()
         reportHandler.post {
@@ -739,6 +791,7 @@ class NoLockXposedModule : XposedModule() {
             SHADE_SCRIM[owner]?.contains(name) == true -> shadeScrimHooker
             KEYGUARD_STATE_EVENTS[owner]?.contains(name) == true -> keyguardEventHooker
             QUICK_SETTINGS_REQUESTS[owner]?.contains(name) == true -> quickSettingsRequestHooker
+            FAILED_UNLOCK_EVENTS[owner]?.contains(name) == true -> failedUnlockHooker
             name == "isModuleActive" -> moduleActiveHooker
             SYSTEM_SERVER_POWER_MENU[owner]?.contains(name) == true -> systemServerPowerMenuHooker
             SYSTEM_UI_POWER_MENU[owner]?.contains(name) == true -> systemUiPowerMenuHooker

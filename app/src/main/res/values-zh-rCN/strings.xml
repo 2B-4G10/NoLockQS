@@ -31,9 +31,9 @@
 
     <string name="attempts_header">已拦截的尝试</string>
     <string name="alerts_title">提醒我</string>
-    <string name="alerts_body">每次拦截后发送一条通知。它不会发出声音，也不会显示在锁屏上，解锁后即可看到。</string>
+    <string name="alerts_body">每次拦截或解锁失败后发送一条通知。它不会发出声音，也不会显示在锁屏上，解锁后即可看到。</string>
     <string name="alerts_body_no_permission">提醒已开启，但 NoLockQS 没有发送通知的权限。请在 Android 设置中为 NoLockQS 允许通知。</string>
-    <string name="attempts_empty">暂无已拦截的尝试。每当手机锁定时电源菜单或快捷设置被拒绝打开，都会记录在这里。</string>
+    <string name="attempts_empty">暂无已拦截的尝试。每当电源菜单或快捷设置被拒绝打开，或有人用错误的 PIN 码、图案、密码、指纹或面孔解锁手机失败，都会记录在这里。</string>
     <plurals name="attempts_summary">
         <item quantity="other">已拦截 %1$d 次尝试：</item>
     </plurals>
@@ -50,6 +50,13 @@
     <string name="alerts_channel_description">手机锁定时电源菜单或快捷设置被拒绝打开后发出。</string>
     <string name="alert_title">已拦截%1$s</string>
     <string name="alert_text_one">有人在 %1$s 试图打开它，当时手机处于锁定状态。</string>
+    <string name="kind_wrong_pin">PIN 码错误</string>
+    <string name="kind_wrong_pattern">图案错误</string>
+    <string name="kind_wrong_password">密码错误</string>
+    <string name="kind_failed_fingerprint">无法识别指纹</string>
+    <string name="kind_failed_face">无法识别面孔</string>
+    <string name="alert_title_unlock">锁屏上%1$s</string>
+    <string name="alert_text_unlock">有人在 %1$s 解锁手机失败。输入的内容永远不会被记录。</string>
     <plurals name="alert_text_many">
         <item quantity="other">自上次查看以来已拦截 %1$d 次尝试，最近一次在 %2$s。</item>
     </plurals>
