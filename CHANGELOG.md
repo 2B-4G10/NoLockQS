@@ -18,7 +18,7 @@ A release without a section gets notes made from its commits.
 
 ### 🔄 Changes
 
-- **Support on Patreon or Ko-fi.** The support card has two matching buttons in each service's own colors: [Patreon](https://www.patreon.com/c/Dossary) and, new, [Ko-fi](https://ko-fi.com/2b4g10/10). The README shows the same pair.
+- **Support on Patreon or Ko-fi.** The support card has two matching buttons in each service's own colors: [Patreon](https://www.patreon.com/c/Dossary) and, new, [Ko-fi](https://ko-fi.com/Q8G429G7HX). The README shows the same pair.
 - **About card.** The app now shows the developer's logo, which links to [github.com/2B-4G10](https://github.com/2B-4G10).
 - **Quick Settings is back the moment you unlock.** The module now follows System UI's own lock events instead of checking the lock state every second. The 1-second check stays only as a fallback on builds where those events can't be followed.
 - **Beyond Pixels.** NoLockQS works on ROMs with near-stock (AOSP) System UI as well as on Pixels, and the app and README now say so.
