@@ -83,7 +83,7 @@ class NoLockXposedModule : XposedModule() {
          * After System UI reports a keyguard change, the lock state is read again at these delays:
          * the window manager, which answers "locked?", takes a moment to catch up with System UI.
          */
-        val KEYGUARD_EVENT_FOLLOW_UPS_MS = longArrayOf(150L, 600L, 1500L, 2500L)
+        val KEYGUARD_EVENT_FOLLOW_UPS_MS = longArrayOf(150L, 600L, 1500L, 2500L, 3100L)
 
         /**
          * Once System UI starts taking the keyguard away after an unlock, Quick Settings counts as
@@ -92,6 +92,14 @@ class NoLockXposedModule : XposedModule() {
          * ([KEYGUARD_SHOW_EVENTS]) or the screen turning off ends it at once.
          */
         const val GOING_AWAY_GRACE_MS = 2000L
+
+        /**
+         * The other way round: once System UI shows the keyguard again, Quick Settings counts as
+         * locked for this long, even while the window manager still answers "unlocked", so a quick
+         * re-lock right after an unlock is covered at once. Afterwards the window manager decides
+         * again, so a stale event can never keep Quick Settings off while the phone is unlocked.
+         */
+        const val SHOWN_GRACE_MS = 3000L
 
         /** [KEYGUARD_STATE_EVENTS] that mean the keyguard is being dismissed after an unlock. */
         val KEYGUARD_GOING_AWAY_EVENTS = setOf("handleStartKeyguardExitAnimation", "handleStartKeyguardExitAnimationInner")
@@ -196,6 +204,10 @@ class NoLockXposedModule : XposedModule() {
     /** Until this uptime the keyguard is going away after an unlock; see [GOING_AWAY_GRACE_MS]. */
     @Volatile
     private var goingAwayUntil = 0L
+
+    /** Until this uptime System UI has just shown the keyguard again; see [SHOWN_GRACE_MS]. */
+    @Volatile
+    private var shownUntil = 0L
 
     /** The app's feature switches as the framework shares them; read on first use, see [isFeatureEnabled]. */
     @Volatile
@@ -329,6 +341,7 @@ class NoLockXposedModule : XposedModule() {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == Intent.ACTION_SCREEN_OFF) goingAwayUntil = 0L
+                if (intent.action == Intent.ACTION_USER_PRESENT) shownUntil = 0L
                 refreshQuickSettings()
             }
         }
@@ -380,8 +393,11 @@ class NoLockXposedModule : XposedModule() {
      */
     private fun refreshQuickSettings() {
         val context = guardContext ?: return
-        val goingAway = SystemClock.uptimeMillis() < goingAwayUntil
-        val disable = isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && !goingAway && isKeyguardLocked(context)
+        val now = SystemClock.uptimeMillis()
+        val goingAway = now < goingAwayUntil
+        val justShown = now < shownUntil
+        val disable = isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && !goingAway &&
+            ((justShown && isDeviceSecure(context)) || isKeyguardLocked(context))
         if (disable != quickSettingsDisabled) setQuickSettingsDisabled(disable)
         mainHandler.removeCallbacks(lockRecheck)
         if (!keyguardEventsHooked && quickSettingsDisabled == true && isInteractive(context)) {
@@ -401,16 +417,28 @@ class NoLockXposedModule : XposedModule() {
         for (delay in KEYGUARD_EVENT_FOLLOW_UPS_MS) mainHandler.postAtTime(keyguardFollowUp, now + delay)
     }
 
+    private fun keyguardGoingAway(now: Long) {
+        goingAwayUntil = now + GOING_AWAY_GRACE_MS
+        shownUntil = 0L
+    }
+
     /** Lets System UI's keyguard event run, then follows the lock state. */
     private val keyguardEventHooker = object : Hooker {
         override fun intercept(chain: Chain): Any? {
             val result = chain.proceed()
+            val now = SystemClock.uptimeMillis()
             when (chain.executable.name) {
-                in KEYGUARD_GOING_AWAY_EVENTS -> goingAwayUntil = SystemClock.uptimeMillis() + GOING_AWAY_GRACE_MS
-                "notifyKeyguardGoingAway" -> if (chain.args.firstOrNull() == true) {
-                    goingAwayUntil = SystemClock.uptimeMillis() + GOING_AWAY_GRACE_MS
+                in KEYGUARD_GOING_AWAY_EVENTS -> keyguardGoingAway(now)
+                "notifyKeyguardGoingAway" -> if (chain.args.firstOrNull() == true) keyguardGoingAway(now)
+                in KEYGUARD_SHOW_EVENTS -> {
+                    goingAwayUntil = 0L
+                    shownUntil = now + SHOWN_GRACE_MS
                 }
-                in KEYGUARD_SHOW_EVENTS -> goingAwayUntil = 0L
+                // notifyKeyguardState(showing, occluded): while going away it still says "showing".
+                "notifyKeyguardState" -> when (chain.args.firstOrNull()) {
+                    true -> if (now >= goingAwayUntil) shownUntil = now + SHOWN_GRACE_MS
+                    false -> shownUntil = 0L
+                }
             }
             onKeyguardEvent()
             return result
@@ -750,6 +778,11 @@ class NoLockXposedModule : XposedModule() {
         runCatching { systemPropertiesGetBoolean?.invoke(null, TOGGLE_PROPERTY, true) as? Boolean }.getOrNull() ?: true
 
     /** True whenever the keyguard is showing, including while an app is shown over it. */
+    /** Whether a PIN, pattern or password protects the phone; without one the keyguard never locks. */
+    private fun isDeviceSecure(context: Context): Boolean = runCatching {
+        context.getSystemService(KeyguardManager::class.java).isDeviceSecure
+    }.getOrDefault(true)
+
     private fun isKeyguardLocked(context: Context?): Boolean = runCatching {
         context?.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
     }.getOrDefault(false)
