@@ -65,6 +65,10 @@
     <string name="diagnostics_copied">报告已复制。</string>
     <string name="diagnostics_subject">NoLockQS 诊断报告</string>
 
+    <string name="about_header">关于</string>
+    <string name="developer_title">开发者：Faisal AlDossary</string>
+    <string name="developer_link_description">打开开发者的 GitHub 主页</string>
+
     <string name="support_title">支持 NoLockQS</string>
     <string name="support_body">如果 NoLockQS 让您的手机更安全，欢迎在 Patreon 上支持它的开发。</string>
     <string name="support_button">在 Patreon 上支持</string>

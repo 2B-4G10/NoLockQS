@@ -4,4 +4,10 @@
         <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
         <item name="android:windowLightNavigationBar">?attr/isLightTheme</item>
     </style>
+
+    <!-- Round crop for the developer logo in the About card. -->
+    <style name="ShapeAppearance.NoLockQS.Circle" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
 </resources>

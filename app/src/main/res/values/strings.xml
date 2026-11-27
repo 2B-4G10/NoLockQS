@@ -74,6 +74,12 @@
     <string name="diagnostics_copied">Report copied.</string>
     <string name="diagnostics_subject">NoLockQS diagnostics report</string>
 
+    <string name="about_header">About</string>
+    <string name="developer_title">Developed by Faisal AlDossary</string>
+    <string name="developer_link_description">Open the developer\'s GitHub page</string>
+    <string name="developer_link" translatable="false">github.com/2B-4G10</string>
+    <string name="developer_url" translatable="false">https://github.com/2B-4G10</string>
+
     <string name="support_title">Support NoLockQS</string>
     <string name="support_body">If NoLockQS keeps your phone safer, you can support its development on Patreon.</string>
     <string name="support_button">Support on Patreon</string>

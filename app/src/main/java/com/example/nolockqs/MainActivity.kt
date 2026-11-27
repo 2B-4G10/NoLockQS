@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName
         binding.version.text = getString(R.string.version_format, versionName.orEmpty())
         binding.patreonButton.setOnClickListener { openLink(getString(R.string.patreon_url)) }
+        binding.developerCard.setOnClickListener { openLink(getString(R.string.developer_url)) }
         binding.statusCard.setOnClickListener { requestMissingScope() }
 
         features = listOf(
