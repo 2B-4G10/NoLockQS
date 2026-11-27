@@ -132,6 +132,11 @@ class MainActivity : AppCompatActivity() {
             AppTheme.LIGHT to binding.themeLight,
             AppTheme.DARK to binding.themeDark,
         )
+        // Material buttons keep to one line, which cuts "Same as device" short: let labels wrap.
+        buttons.values.forEach { button ->
+            button.isSingleLine = false
+            button.maxLines = 2
+        }
         binding.themeGroup.check(buttons.getValue(AppTheme.get(this)).id)
         binding.themeGroup.addOnButtonCheckedListener { _, id, checked ->
             if (!checked) return@addOnButtonCheckedListener
