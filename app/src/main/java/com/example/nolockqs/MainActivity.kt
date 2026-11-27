@@ -31,7 +31,6 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.example.nolockqs.databinding.ActivityMainBinding
 import com.example.nolockqs.databinding.ItemAttemptBinding
 import com.example.nolockqs.databinding.ItemFeatureBinding
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class MainActivity : AppCompatActivity() {
@@ -386,7 +385,7 @@ class MainActivity : AppCompatActivity() {
             .show()
             // Clearing can't be undone: the confirm button is in the error color.
             .getButton(DialogInterface.BUTTON_POSITIVE)
-            ?.setTextColor(MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorError))
+            ?.setTextColor(getColor(R.color.p_error))
     }
 
     // ---------------------------------------------------------------------------------------
