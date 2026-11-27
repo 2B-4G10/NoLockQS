@@ -22,8 +22,8 @@
     <color name="patreon_button">#FFFF424D</color>
     <color name="patreon_on_button">#FFFFFFFF</color>
 
-    <!-- Ko-fi's button, as on the developer's Ko-fi widget. -->
-    <color name="kofi_button">#FF72A4F2</color>
+    <!-- Ko-fi's button: Ko-fi's blue, a shade deeper so its white text stays readable (4.8:1). -->
+    <color name="kofi_button">#FF2F6FD8</color>
     <color name="kofi_on_button">#FFFFFFFF</color>
 
     <!-- The glass look: its own palette in place of Material You, the backdrop glows, the frosted card fill and its bright edge, and one accent per kind of blocked attempt. -->

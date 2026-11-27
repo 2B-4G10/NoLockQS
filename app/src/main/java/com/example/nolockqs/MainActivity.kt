@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -30,6 +31,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.example.nolockqs.databinding.ActivityMainBinding
 import com.example.nolockqs.databinding.ItemAttemptBinding
 import com.example.nolockqs.databinding.ItemFeatureBinding
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class MainActivity : AppCompatActivity() {
@@ -382,6 +384,9 @@ class MainActivity : AppCompatActivity() {
                 renderAttempts()
             }
             .show()
+            // Clearing can't be undone: the confirm button is in the error color.
+            .getButton(DialogInterface.BUTTON_POSITIVE)
+            ?.setTextColor(MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorError))
     }
 
     // ---------------------------------------------------------------------------------------

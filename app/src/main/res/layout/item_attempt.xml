@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One row of the blocked-attempts history: an icon for what was tried, then what and when. -->
+<!-- One row of the blocked-attempts history: an icon for what was tried, then what and when. Screen readers read the row as one. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingVertical="6dp">
+    android:paddingVertical="6dp"
+    android:screenReaderFocusable="true">
 
     <ImageView
         android:id="@+id/attempt_icon"
