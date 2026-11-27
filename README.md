@@ -41,7 +41,7 @@ NoLockQS is proprietary software: you may install and use it on your own devices
 
 <div align="center">
 
-### ❤️ You can show your love on [Patreon](https://patreon.com/Dossary)!
+### ❤️ You can show your love on [Patreon](https://patreon.com/Dossary) or [Ko-fi](https://ko-fi.com/2b4g10/10)!
 
 **Made in Saudi 🇸🇦**
 
