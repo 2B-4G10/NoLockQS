@@ -1,13 +1,23 @@
 package com.example.nolockqs
 
+import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.Typeface
 import android.os.Bundle
+import android.provider.Settings
+import android.text.format.DateUtils
 import android.view.View
 import android.view.WindowInsets
+import android.widget.ScrollView
 import android.widget.Switch
+import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
@@ -16,9 +26,11 @@ import androidx.core.net.toUri
 import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.core.widget.TextViewCompat
 import com.example.nolockqs.databinding.ActivityMainBinding
 import com.example.nolockqs.databinding.ItemFeatureBinding
 import com.google.android.material.color.DynamicColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,6 +40,12 @@ class MainActivity : AppCompatActivity() {
 
         /** System Framework (system_server), as Vector lists it in the scope. */
         const val SYSTEM_FRAMEWORK = "system"
+
+        /** How many of the newest blocked attempts the screen lists. */
+        const val ATTEMPTS_SHOWN = 20
+
+        /** Set once the notification permission was asked for, so the app asks only once by itself. */
+        const val KEY_ASKED_NOTIFICATIONS = "asked_notifications"
     }
 
     /** A protection's box on this screen and the switch in [FeatureSettings] it controls. */
@@ -46,6 +64,14 @@ class MainActivity : AppCompatActivity() {
 
     /** The last known state of the switches, shown until the framework connects. */
     private val savedSwitches by lazy { getSharedPreferences("feature_switches", MODE_PRIVATE) }
+
+    /** The blocked attempts and the hooks' status reports, kept by [ReportReceiver]. */
+    private val attemptLog by lazy { AttemptLog(this) }
+
+    /** Redraws the history whenever [ReportReceiver] records an attempt while the screen is open. */
+    private val attemptLogListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> renderAttempts() }
+
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { renderAttempts() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
@@ -76,16 +102,35 @@ class MainActivity : AppCompatActivity() {
             ),
         )
         features.forEach(::setUpFeature)
+
+        binding.alertsRow.setOnClickListener { toggleAlerts() }
+        binding.clearHistory.setOnClickListener { confirmClearHistory() }
+        binding.diagnosticsButton.setOnClickListener { createDiagnosticsReport() }
+        ReportReceiver.createChannel(this)
+        // Alerts are on by default, so ask for the notification permission they need once.
+        if (savedInstanceState == null && attemptLog.alertsEnabled && !canNotify() && !savedSwitches.getBoolean(KEY_ASKED_NOTIFICATIONS, false)) {
+            askForNotifications()
+        }
     }
 
     override fun onStart() {
         super.onStart()
         app.onFeatureSettingsChanged = ::onFeatureSettingsChanged
         onFeatureSettingsChanged()
+        attemptLog.prefs.registerOnSharedPreferenceChangeListener(attemptLogListener)
+        renderAttempts()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The history is on screen: the alert has done its job.
+        attemptLog.markSeen()
+        ReportReceiver.cancelAlert(this)
     }
 
     override fun onStop() {
         app.onFeatureSettingsChanged = null
+        attemptLog.prefs.unregisterOnSharedPreferenceChangeListener(attemptLogListener)
         super.onStop()
     }
 
@@ -226,6 +271,139 @@ class MainActivity : AppCompatActivity() {
         binding.statusTitle.setTextColor(content)
         binding.statusBody.text = getString(R.string.status_scope_body, missing.joinToString(getString(R.string.scope_separator), transform = ::scopeLabel))
         binding.statusBody.setTextColor(content)
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Blocked attempts
+    // ---------------------------------------------------------------------------------------
+
+    private fun canNotify(): Boolean =
+        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun toggleAlerts() {
+        val on = !attemptLog.alertsEnabled
+        attemptLog.alertsEnabled = on
+        if (on && !canNotify()) askForNotifications()
+        renderAttempts()
+    }
+
+    /** Asks for the notification permission, or opens the settings once Android stops asking. */
+    private fun askForNotifications() {
+        val asked = savedSwitches.getBoolean(KEY_ASKED_NOTIFICATIONS, false)
+        if (!asked || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            savedSwitches.edit { putBoolean(KEY_ASKED_NOTIFICATIONS, true) }
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            }
+        }
+    }
+
+    private fun renderAttempts() {
+        val alerts = attemptLog.alertsEnabled
+        binding.alertsSwitch.isChecked = alerts
+        binding.alertsBody.setText(if (alerts && !canNotify()) R.string.alerts_body_no_permission else R.string.alerts_body)
+        ViewCompat.setStateDescription(binding.alertsRow, getString(if (alerts) R.string.feature_state_on else R.string.feature_state_off))
+        ViewCompat.setAccessibilityDelegate(binding.alertsRow, object : AccessibilityDelegateCompat() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = Switch::class.java.name
+                info.isCheckable = true
+                info.checked = if (attemptLog.alertsEnabled) {
+                    AccessibilityNodeInfoCompat.CHECKED_STATE_TRUE
+                } else {
+                    AccessibilityNodeInfoCompat.CHECKED_STATE_FALSE
+                }
+            }
+        })
+
+        val attempts = attemptLog.attempts()
+        binding.attemptsSummary.text = when {
+            attempts.isEmpty() -> getString(R.string.attempts_empty)
+            attempts.size > ATTEMPTS_SHOWN -> resources.getQuantityString(R.plurals.attempts_summary_latest, attempts.size, ATTEMPTS_SHOWN, attempts.size)
+            else -> resources.getQuantityString(R.plurals.attempts_summary, attempts.size, attempts.size)
+        }
+        binding.attemptsList.removeAllViews()
+        attempts.take(ATTEMPTS_SHOWN).forEach { attempt ->
+            val row = layoutInflater.inflate(R.layout.item_attempt, binding.attemptsList, false) as TextView
+            val icon = if (attempt.kind == Reports.KIND_POWER_MENU) R.drawable.ic_power_menu else R.drawable.ic_quick_settings
+            row.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+            TextViewCompat.setCompoundDrawableTintList(row, getColorStateList(R.color.attempt_icon))
+            val at = DateUtils.formatDateTime(
+                this, attempt.time,
+                DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
+            )
+            row.text = getString(R.string.attempt_row, ReportReceiver.kindLabel(this, attempt.kind), at)
+            binding.attemptsList.addView(row)
+        }
+        binding.clearHistory.visibility = if (attempts.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun confirmClearHistory() {
+        val count = attemptLog.attempts().size
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.attempts_clear_title)
+            .setMessage(resources.getQuantityString(R.plurals.attempts_clear_message, count, count))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.attempts_clear) { _, _ ->
+                attemptLog.clear()
+                renderAttempts()
+            }
+            .show()
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Diagnostics
+    // ---------------------------------------------------------------------------------------
+
+    private fun createDiagnosticsReport() {
+        val versionName = packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName.orEmpty()
+        val state = Diagnostics.AppState(
+            version = versionName,
+            moduleActive = isModuleActive(),
+            frameworkConnected = app.featureSettings != null,
+            scope = app.scope,
+            switches = features.associate { it.key to isOn(it.key) },
+        )
+        binding.diagnosticsButton.isEnabled = false
+        binding.diagnosticsButton.setText(R.string.diagnostics_working)
+        Thread {
+            val report = Diagnostics.build(applicationContext, state)
+            runOnUiThread {
+                binding.diagnosticsButton.isEnabled = true
+                binding.diagnosticsButton.setText(R.string.diagnostics_button)
+                if (!isFinishing && !isDestroyed) showDiagnosticsReport(report)
+            }
+        }.start()
+    }
+
+    private fun showDiagnosticsReport(report: String) {
+        val padding = (20 * resources.displayMetrics.density).toInt()
+        val text = TextView(this).apply {
+            this.text = report
+            typeface = Typeface.MONOSPACE
+            textSize = 11f
+            setTextIsSelectable(true)
+            textDirection = View.TEXT_DIRECTION_LTR
+            setPadding(padding, padding / 2, padding, 0)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.diagnostics_title)
+            .setView(ScrollView(this).apply { addView(text) })
+            .setNegativeButton(R.string.diagnostics_copy) { _, _ ->
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(getString(R.string.diagnostics_title), report))
+                Toast.makeText(this, R.string.diagnostics_copied, Toast.LENGTH_SHORT).show()
+            }
+            .setPositiveButton(R.string.diagnostics_share) { _, _ ->
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.diagnostics_subject))
+                    .putExtra(Intent.EXTRA_TEXT, report)
+                startActivity(Intent.createChooser(send, getString(R.string.diagnostics_share)))
+            }
+            .setNeutralButton(R.string.diagnostics_close, null)
+            .show()
     }
 
     private fun openLink(url: String) {

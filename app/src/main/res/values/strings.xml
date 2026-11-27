@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NoLockQS</string>
+    <string name="app_name" translatable="false">NoLockQS</string>
     <!-- Shown under the name in Vector's module list. -->
     <string name="module_description">Blocks Quick Settings and the power menu on the lock screen</string>
     <string name="tagline">Keeps Quick Settings and the power menu locked.</string>
@@ -31,13 +31,56 @@
     <string name="feature_power_title">Power menu</string>
     <string name="feature_power_body">Holding the power button can\'t open it. Needs System Framework in Vector\'s scope.</string>
 
+    <string name="attempts_header">Blocked attempts</string>
+    <string name="alerts_title">Alert me</string>
+    <string name="alerts_body">Get a notification after each blocked attempt. It makes no sound and never shows on the lock screen, so you see it once you unlock.</string>
+    <string name="alerts_body_no_permission">Alerts are on, but NoLockQS isn\'t allowed to send notifications. Allow them in Android\'s settings for NoLockQS.</string>
+    <string name="attempts_empty">No blocked attempts yet. Each time the power menu or Quick Settings is refused while your phone is locked, it shows up here.</string>
+    <plurals name="attempts_summary">
+        <item quantity="one">%1$d blocked attempt:</item>
+        <item quantity="other">%1$d blocked attempts:</item>
+    </plurals>
+    <plurals name="attempts_summary_latest">
+        <item quantity="one">The latest %1$d of %2$d blocked attempt:</item>
+        <item quantity="other">The latest %1$d of %2$d blocked attempts:</item>
+    </plurals>
+    <!-- A row of the history: what was blocked, then when. -->
+    <string name="attempt_row" translatable="false">%1$s · %2$s</string>
+    <string name="attempts_clear">Clear history</string>
+    <string name="attempts_clear_title">Clear the history?</string>
+    <plurals name="attempts_clear_message">
+        <item quantity="one">This deletes %1$d entry. It can\'t be undone.</item>
+        <item quantity="other">This deletes all %1$d entries. It can\'t be undone.</item>
+    </plurals>
+
+    <string name="alerts_channel_name">Blocked attempts</string>
+    <string name="alerts_channel_description">After the power menu or Quick Settings was refused while your phone was locked.</string>
+    <!-- %1$s is "Power menu" or "Quick Settings". -->
+    <string name="alert_title">%1$s blocked</string>
+    <string name="alert_text_one">Someone tried to open it at %1$s while your phone was locked.</string>
+    <plurals name="alert_text_many">
+        <item quantity="one">%1$d blocked attempt since you last checked, the latest at %2$s.</item>
+        <item quantity="other">%1$d blocked attempts since you last checked, the latest at %2$s.</item>
+    </plurals>
+
+    <string name="diagnostics_header">Troubleshooting</string>
+    <string name="diagnostics_title">Diagnostics report</string>
+    <string name="diagnostics_body">Lists your device, which protections are hooked and, with root, NoLockQS\'s own log. Nothing personal is included. Share it when you report a problem.</string>
+    <string name="diagnostics_button">Create report</string>
+    <string name="diagnostics_working">Creating…</string>
+    <string name="diagnostics_share">Share</string>
+    <string name="diagnostics_copy">Copy</string>
+    <string name="diagnostics_close">Close</string>
+    <string name="diagnostics_copied">Report copied.</string>
+    <string name="diagnostics_subject">NoLockQS diagnostics report</string>
+
     <string name="support_title">Support NoLockQS</string>
     <string name="support_body">If NoLockQS keeps your phone safer, you can support its development on Patreon.</string>
     <string name="support_button">Support on Patreon</string>
     <string name="patreon_url" translatable="false">https://patreon.com/Dossary</string>
     <string name="no_browser">No browser found to open the link.</string>
 
-    <string name="compatibility_info">Works on rooted Pixel phones running Android 15 or newer.</string>
-    <string name="privacy_info">No data collected. Everything runs on your device.</string>
+    <string name="compatibility_info">Works on rooted phones with Android 15 or newer: Pixels, and ROMs with near-stock (AOSP) System UI.</string>
+    <string name="privacy_info">No data collected. Everything, the attempt history too, stays on your device.</string>
     <string name="made_in">Made in Saudi 🇸🇦</string>
 </resources>

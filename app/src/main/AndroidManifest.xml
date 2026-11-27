@@ -3,6 +3,9 @@
      with its android:label and android:description. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Alerts for blocked attempts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".NoLockApplication"
         android:allowBackup="false"
@@ -22,6 +25,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Reports from the hooks in System UI and System Framework (see Reports). Only senders
+             holding STATUS_BAR_SERVICE, which no ordinary app can, reach it. It also runs before
+             the first unlock after a restart. -->
+        <receiver
+            android:name=".ReportReceiver"
+            android:directBootAware="true"
+            android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE">
+            <intent-filter>
+                <action android:name="io.github.i2B4G10.NoLockQS.action.BLOCKED" />
+                <action android:name="io.github.i2B4G10.NoLockQS.action.STATUS" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

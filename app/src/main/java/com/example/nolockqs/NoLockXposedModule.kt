@@ -10,8 +10,11 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
+import android.os.UserHandle
 import android.util.Log
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.ExceptionMode
@@ -26,6 +29,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.WeakHashMap
 import java.util.concurrent.Executor
 
@@ -75,6 +79,19 @@ class NoLockXposedModule : XposedModule() {
          */
         const val LOCK_RECHECK_MS = 1000L
 
+        /**
+         * After System UI reports a keyguard change, the lock state is read again at these delays:
+         * the window manager, which answers "locked?", takes a moment to catch up with System UI.
+         */
+        val KEYGUARD_EVENT_FOLLOW_UPS_MS = longArrayOf(150L, 600L, 1500L)
+
+        /** The same blocked attempt seen again within this window counts once. */
+        const val REPORT_DEBOUNCE_MS = 3000L
+
+        /** system_server reports its hooks once boot completes; it checks this often, this many times. */
+        const val STATUS_RETRY_MS = 15_000L
+        const val STATUS_RETRIES = 60
+
         /** Methods that open the power menu in system_server, keyed by declaring class. */
         val SYSTEM_SERVER_POWER_MENU = mapOf(
             "com.android.server.policy.PhoneWindowManager" to setOf("showGlobalActionsInternal"),
@@ -116,6 +133,24 @@ class NoLockXposedModule : XposedModule() {
         /** Scrim states of the lock screen and of the shade pulled down over it. */
         val LOCKED_SHADE_SCRIM_STATES = setOf("KEYGUARD", "SHADE_LOCKED")
 
+        /** Intent.FLAG_INCLUDE_STOPPED_PACKAGES: reach the app even before it was first opened. */
+        const val FLAG_INCLUDE_STOPPED_PACKAGES = 0x20
+
+        /**
+         * Where System UI itself learns that the keyguard is shown, hidden or going away. Hooked
+         * to follow the lock state the moment it changes; the hooked methods run as usual. While
+         * at least one of them is hooked, the 1 s re-check is not needed.
+         */
+        val KEYGUARD_STATE_EVENTS = mapOf(
+            "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl" to setOf("notifyKeyguardState", "notifyKeyguardGoingAway"),
+            "com.android.systemui.keyguard.KeyguardViewMediator" to setOf("handleShow", "handleHide", "handleStartKeyguardExitAnimation"),
+        )
+
+        /** Requests from apps and `cmd statusbar` to open Quick Settings; reported while blocked, never changed. */
+        val QUICK_SETTINGS_REQUESTS = mapOf(
+            "com.android.systemui.statusbar.CommandQueue" to setOf("animateExpandSettingsPanel"),
+        )
+
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -126,6 +161,19 @@ class NoLockXposedModule : XposedModule() {
     /** SystemUI class loaders already hooked in this process. */
     private val hookedLoaders: MutableSet<ClassLoader> =
         Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>()))
+
+    /** What each protection layer installed in this process, for the status report. */
+    private val layerStatus: MutableMap<String, String> = Collections.synchronizedMap(LinkedHashMap())
+
+    /** When each kind of blocked attempt was last reported, for [REPORT_DEBOUNCE_MS]. */
+    private val lastReported = ConcurrentHashMap<String, Long>()
+
+    /** Sends reports off the hooked thread, which may hold system locks. */
+    private val reportHandler: Handler by lazy { Handler(HandlerThread("NoLockQS-reports").apply { start() }.looper) }
+
+    /** True once a [KEYGUARD_STATE_EVENTS] hook is in: lock changes then arrive as they happen. */
+    @Volatile
+    private var keyguardEventsHooked = false
 
     /** The app's feature switches as the framework shares them; read on first use, see [isFeatureEnabled]. */
     @Volatile
@@ -140,6 +188,11 @@ class NoLockXposedModule : XposedModule() {
             Class.forName("android.os.SystemProperties")
                 .getMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
         }.getOrNull()
+    }
+
+    @delegate:SuppressLint("PrivateApi") // As above.
+    private val systemPropertiesGet: Method? by lazy {
+        runCatching { Class.forName("android.os.SystemProperties").getMethod("get", String::class.java, String::class.java) }.getOrNull()
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
@@ -158,8 +211,10 @@ class NoLockXposedModule : XposedModule() {
                     return
                 }
                 log(Log.INFO, TAG, "Hooking ${param.packageName} on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}).")
+                keyguardEventsHooked = installHooks(param.classLoader, KEYGUARD_STATE_EVENTS, keyguardEventHooker, "Unlock detection") > 0
                 startQuickSettingsGuard()
                 installHooks(param.classLoader, SCENE_CONTAINER_ENTRY, sceneContainerEntryHooker, "Quick Settings scene")
+                installHooks(param.classLoader, QUICK_SETTINGS_REQUESTS, quickSettingsRequestHooker, "Quick Settings requests")
                 installHooks(param.classLoader, SHADE_SCRIM, shadeScrimHooker, "Shade background")
                 installHooks(param.classLoader, SYSTEM_UI_POWER_MENU, systemUiPowerMenuHooker, "Power menu (SystemUI)", everyRelease = true)
             }
@@ -169,6 +224,7 @@ class NoLockXposedModule : XposedModule() {
 
     override fun onSystemServerStarting(param: SystemServerStartingParam) {
         installHooks(param.classLoader, SYSTEM_SERVER_POWER_MENU, systemServerPowerMenuHooker, "Power menu (system_server)", everyRelease = true)
+        reportSystemServerStatus()
     }
 
     /** The lock-state watchers belong to this generation's code: drop them, the next one starts its own. */
@@ -186,6 +242,7 @@ class NoLockXposedModule : XposedModule() {
         for (old in param.oldHookHandles) {
             val hooker = hookerFor(old.executable)
             if (old.executable.declaringClass.name.startsWith("com.android.systemui.")) inSystemUi = true
+            if (hooker === keyguardEventHooker) keyguardEventsHooked = true
             runCatching { if (hooker != null) old.replaceHook(hooker) else old.unhook() }
                 .onFailure { log(Log.WARN, TAG, "Hot reload: could not update the hook on ${old.executable}", it) }
         }
@@ -208,7 +265,8 @@ class NoLockXposedModule : XposedModule() {
     private var lockListener: Any? = null
     private var settingsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
-    /** What was last asked of the status bar service: true while Quick Settings is disabled. Main thread only. */
+    /** What was last asked of the status bar service: true while Quick Settings is disabled. Set on the main thread only. */
+    @Volatile
     private var quickSettingsDisabled: Boolean? = null
 
     /**
@@ -231,8 +289,11 @@ class NoLockXposedModule : XposedModule() {
             // A context of its own comes with its own service cache, hence its own manager.
             statusBar = runCatching { context.createConfigurationContext(context.resources.configuration).getSystemService("statusbar") }.getOrNull()
             watchLockState(context)
-            log(Log.INFO, TAG, "Quick Settings: following the lock state (lock listener=${lockListener != null}).")
+            log(Log.INFO, TAG, "Quick Settings: following the lock state (lock listener=${lockListener != null}, unlock detection=${if (keyguardEventsHooked) "System UI events" else "1 s re-check"}).")
+            layerStatus["Quick Settings guard"] = "active, lock listener ${if (lockListener != null) "yes" else "no"}, " +
+                if (keyguardEventsHooked) "unlocks seen as they happen" else "unlocks seen by a 1 s re-check"
             refreshQuickSettings()
+            sendStatus(context, Reports.PROCESS_SYSTEM_UI)
         }
     }
 
@@ -287,18 +348,49 @@ class NoLockXposedModule : XposedModule() {
 
     /**
      * Disables Quick Settings while the keyguard is locked and the switch is on, else enables it.
-     * While it stays disabled with the screen on, the lock state is checked again every
-     * [LOCK_RECHECK_MS], so Quick Settings comes back after an unlock even if no lock event arrives.
+     * Lock changes arrive from System UI's own keyguard events ([keyguardEventHooker]). Only on a
+     * build where none of them could be hooked is the lock state checked again every
+     * [LOCK_RECHECK_MS] while Quick Settings is disabled and the screen is on, so it still comes
+     * back after an unlock that no other event reports.
      */
     private fun refreshQuickSettings() {
         val context = guardContext ?: return
         val disable = isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(context)
         if (disable != quickSettingsDisabled) setQuickSettingsDisabled(disable)
         mainHandler.removeCallbacks(lockRecheck)
-        if (quickSettingsDisabled == true && isInteractive(context)) mainHandler.postDelayed(lockRecheck, LOCK_RECHECK_MS)
+        if (!keyguardEventsHooked && quickSettingsDisabled == true && isInteractive(context)) {
+            mainHandler.postDelayed(lockRecheck, LOCK_RECHECK_MS)
+        }
     }
 
     private val lockRecheck = Runnable { refreshQuickSettings() }
+
+    /** Follows a keyguard event: now, and again at [KEYGUARD_EVENT_FOLLOW_UPS_MS] as the system catches up. */
+    private val keyguardFollowUp = Runnable { refreshQuickSettings() }
+
+    private fun onKeyguardEvent() {
+        mainHandler.removeCallbacks(keyguardFollowUp)
+        mainHandler.post(keyguardFollowUp)
+        val now = SystemClock.uptimeMillis()
+        for (delay in KEYGUARD_EVENT_FOLLOW_UPS_MS) mainHandler.postAtTime(keyguardFollowUp, now + delay)
+    }
+
+    /** Lets System UI's keyguard event run, then follows the lock state. */
+    private val keyguardEventHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val result = chain.proceed()
+            onKeyguardEvent()
+            return result
+        }
+    }
+
+    /** Reports an app's or a command's request for Quick Settings that the lock refuses; it runs on unchanged. */
+    private val quickSettingsRequestHooker = object : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            if (quickSettingsDisabled == true) reportBlocked(Reports.KIND_QUICK_SETTINGS)
+            return chain.proceed()
+        }
+    }
 
     private fun isInteractive(context: Context): Boolean =
         runCatching { context.getSystemService(PowerManager::class.java).isInteractive }.getOrDefault(true)
@@ -328,6 +420,7 @@ class NoLockXposedModule : XposedModule() {
                 isFeatureEnabled(FeatureSettings.BLOCK_QUICK_SETTINGS) && isKeyguardLocked(systemContext())
             ) {
                 log(Log.INFO, TAG, "Blocked the '${sceneKeyName(destination)}' scene over the lock screen (${chain.executable.name}).")
+                reportBlocked(Reports.KIND_QUICK_SETTINGS)
                 return blockedResult(chain.executable)
             }
             // Asked for Quick Settings while unlocked: make sure this module's flag is not in the way.
@@ -402,6 +495,7 @@ class NoLockXposedModule : XposedModule() {
             val keyguardShowing = chain.args.firstOrNull() == true
             if (isFeatureEnabled(FeatureSettings.BLOCK_POWER_MENU) && (keyguardShowing || isSystemServerLocked(chain.thisObject))) {
                 log(Log.INFO, TAG, "Blocked the power menu (${chain.executable.name}).")
+                reportBlocked(Reports.KIND_POWER_MENU)
                 return blockedResult(chain.executable)
             }
             return chain.proceed()
@@ -413,6 +507,7 @@ class NoLockXposedModule : XposedModule() {
             if (isFeatureEnabled(FeatureSettings.BLOCK_POWER_MENU) && isKeyguardLocked(systemContext())) {
                 acknowledgeGlobalActions(chain)
                 log(Log.INFO, TAG, "Blocked the power menu in SystemUI (${chain.executable.name}).")
+                reportBlocked(Reports.KIND_POWER_MENU)
                 return blockedResult(chain.executable)
             }
             return chain.proceed()
@@ -477,6 +572,58 @@ class NoLockXposedModule : XposedModule() {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Reports to the app (see Reports)
+    // ---------------------------------------------------------------------------------------
+
+    /** Tells the app a protection refused [kind] while locked; a burst of the same kind counts once. */
+    private fun reportBlocked(kind: String) {
+        val now = SystemClock.elapsedRealtime()
+        val last = lastReported[kind]
+        if (last != null && now - last < REPORT_DEBOUNCE_MS) return
+        lastReported[kind] = now
+        val time = System.currentTimeMillis()
+        reportHandler.post {
+            send(systemContext(), Intent(Reports.ACTION_BLOCKED).putExtra(Reports.EXTRA_KIND, kind).putExtra(Reports.EXTRA_TIME, time))
+        }
+    }
+
+    /** Tells the app which layers this process installed. */
+    private fun sendStatus(context: Context?, process: String) {
+        val layers = synchronized(layerStatus) { layerStatus.map { (layer, state) -> "$layer: $state" } }
+        val intent = Intent(Reports.ACTION_STATUS)
+            .putExtra(Reports.EXTRA_PROCESS, process)
+            .putExtra(Reports.EXTRA_TIME, System.currentTimeMillis())
+            .putStringArrayListExtra(Reports.EXTRA_LAYERS, ArrayList(layers))
+        reportHandler.post { send(context, intent) }
+    }
+
+    /** system_server is far from ready for broadcasts when it is hooked: report once boot completes. */
+    private fun reportSystemServerStatus(attempt: Int = 0) {
+        reportHandler.postDelayed({
+            val booted = runCatching { systemPropertiesGet?.invoke(null, "sys.boot_completed", "") == "1" }.getOrDefault(false)
+            val context = systemContext()
+            when {
+                booted && context != null -> sendStatus(context, Reports.PROCESS_SYSTEM_SERVER)
+                attempt < STATUS_RETRIES -> reportSystemServerStatus(attempt + 1)
+            }
+        }, STATUS_RETRY_MS)
+    }
+
+    /** Sends a report to the app's [Reports.RECEIVER_CLASS] in the current user. */
+    private fun send(context: Context?, intent: Intent) {
+        if (context == null) return
+        intent.setClassName(moduleApplicationInfo.packageName, Reports.RECEIVER_CLASS)
+            .addFlags(Intent.FLAG_RECEIVER_FOREGROUND or FLAG_INCLUDE_STOPPED_PACKAGES)
+        runCatching { context.sendBroadcastAsUser(intent, currentUser()) }
+            .onFailure { log(Log.WARN, TAG, "Could not send ${intent.action} to the app", it) }
+    }
+
+    /** UserHandle.CURRENT (hidden), else this process's own user. */
+    private fun currentUser(): UserHandle =
+        runCatching { UserHandle::class.java.getField("CURRENT").get(null) as UserHandle }.getOrNull()
+            ?: android.os.Process.myUserHandle()
+
+    // ---------------------------------------------------------------------------------------
     // Shared helpers
     // ---------------------------------------------------------------------------------------
 
@@ -490,7 +637,7 @@ class NoLockXposedModule : XposedModule() {
         hooker: Hooker,
         layer: String,
         everyRelease: Boolean = false,
-    ) {
+    ): Int {
         val methods = targets.flatMap { (className, names) ->
             loadClassOrNull(classLoader, className)?.declaredMethods
                 ?.filter { it.name in names && !Modifier.isAbstract(it.modifiers) }
@@ -502,6 +649,12 @@ class NoLockXposedModule : XposedModule() {
             everyRelease -> log(Log.WARN, TAG, "$layer: no known target on this build, layer inactive.")
             else -> log(Log.INFO, TAG, "$layer: not part of this build.")
         }
+        layerStatus[layer] = when {
+            count > 0 -> "$count hook(s)"
+            everyRelease -> "INACTIVE, no known target on this build"
+            else -> "not part of this build"
+        }
+        return count
     }
 
     private fun hookSafely(method: Method, hooker: Hooker): Boolean {
@@ -523,6 +676,8 @@ class NoLockXposedModule : XposedModule() {
         return when {
             SCENE_CONTAINER_ENTRY[owner]?.contains(name) == true -> sceneContainerEntryHooker
             SHADE_SCRIM[owner]?.contains(name) == true -> shadeScrimHooker
+            KEYGUARD_STATE_EVENTS[owner]?.contains(name) == true -> keyguardEventHooker
+            QUICK_SETTINGS_REQUESTS[owner]?.contains(name) == true -> quickSettingsRequestHooker
             name == "isModuleActive" -> moduleActiveHooker
             SYSTEM_SERVER_POWER_MENU[owner]?.contains(name) == true -> systemServerPowerMenuHooker
             SYSTEM_UI_POWER_MENU[owner]?.contains(name) == true -> systemUiPowerMenuHooker
