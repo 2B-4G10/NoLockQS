@@ -180,9 +180,6 @@ class NoLockXposedModule : XposedModule() {
         /** Scrim states of the lock screen and of the shade pulled down over it. */
         val LOCKED_SHADE_SCRIM_STATES = setOf("KEYGUARD", "SHADE_LOCKED")
 
-        /** Intent.FLAG_INCLUDE_STOPPED_PACKAGES: reach the app even before it was first opened. */
-        const val FLAG_INCLUDE_STOPPED_PACKAGES = 0x20
-
         /**
          * Where System UI itself learns that the keyguard is shown, hidden or going away. Hooked
          * to follow the lock state the moment it changes; the hooked methods run as usual. While
@@ -754,11 +751,16 @@ class NoLockXposedModule : XposedModule() {
         }, STATUS_RETRY_MS)
     }
 
-    /** Sends a report to the app's [Reports.RECEIVER_CLASS] in the current user. */
+    /**
+     * Sends a report to the app's [Reports.RECEIVER_CLASS] in the current user, reaching it even
+     * before it was first opened. This runs inside System UI or system_server, which hold
+     * INTERACT_ACROSS_USERS; lint only sees the module app's manifest, which doesn't need it.
+     */
+    @SuppressLint("MissingPermission")
     private fun send(context: Context?, intent: Intent) {
         if (context == null) return
         intent.setClassName(moduleApplicationInfo.packageName, Reports.RECEIVER_CLASS)
-            .addFlags(Intent.FLAG_RECEIVER_FOREGROUND or FLAG_INCLUDE_STOPPED_PACKAGES)
+            .addFlags(Intent.FLAG_RECEIVER_FOREGROUND or Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         runCatching { context.sendBroadcastAsUser(intent, currentUser()) }
             .onFailure { log(Log.WARN, TAG, "Could not send ${intent.action} to the app", it) }
     }
