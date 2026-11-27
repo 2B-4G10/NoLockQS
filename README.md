@@ -41,10 +41,10 @@ NoLockQS is proprietary software: you may install and use it on your own devices
 
 <div align="center">
 
-### ❤️ You can show your love on [Patreon](https://www.patreon.com/c/Dossary) or [Ko-fi](https://ko-fi.com/2b4g10/10)!
+### ❤️ You can show your love on [Patreon](https://www.patreon.com/c/Dossary) or [Ko-fi](https://ko-fi.com/Q8G429G7HX)!
 
 [![Support me on Patreon](https://img.shields.io/badge/Support_me_on_Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/c/Dossary)
-[![Support me on Ko-fi](https://img.shields.io/badge/Support_me_on_Ko--fi-72A4F2?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/2b4g10/10)
+[![Support me on Ko-fi](https://img.shields.io/badge/Support_me_on_Ko--fi-72A4F2?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/Q8G429G7HX)
 
 **Made in Saudi 🇸🇦**
 
