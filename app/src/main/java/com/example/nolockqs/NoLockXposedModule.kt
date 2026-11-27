@@ -187,6 +187,7 @@ class NoLockXposedModule : XposedModule() {
             "com.android.systemui.keyguard.KeyguardViewMediator" to setOf(
                 "handleShow", "handleShowInner", "handleHide",
                 "handleStartKeyguardExitAnimation", "handleStartKeyguardExitAnimationInner",
+                "onStartedGoingToSleep",
             ),
         )
 
@@ -437,8 +438,23 @@ class NoLockXposedModule : XposedModule() {
     }
 
     private fun keyguardGoingAway(now: Long) {
+        // A screen going off cancels a running unlock animation, which ends in these same calls:
+        // that is no unlock.
+        if (guardContext?.let(::isInteractive) == false) return
         goingAwayUntil = now + GOING_AWAY_GRACE_MS
         shownUntil = 0L
+    }
+
+    /** Whether KeyguardViewMediator will lock once the screen is off (its `mPendingLock`). */
+    private fun pendingLock(mediator: Any?): Boolean {
+        var cls: Class<*>? = mediator?.javaClass
+        while (cls != null && cls != Any::class.java) {
+            val current: Class<*> = cls
+            val field = runCatching { current.getDeclaredField("mPendingLock") }.getOrNull()
+            if (field != null) return runCatching { field.isAccessible = true; field.getBoolean(mediator) }.getOrDefault(false)
+            cls = current.superclass
+        }
+        return false
     }
 
     /** Lets System UI's keyguard event run, then follows the lock state. */
@@ -450,6 +466,13 @@ class NoLockXposedModule : XposedModule() {
                 in KEYGUARD_GOING_AWAY_EVENTS -> keyguardGoingAway(now)
                 "notifyKeyguardGoingAway" -> if (chain.args.firstOrNull() == true) keyguardGoingAway(now)
                 in KEYGUARD_SHOW_EVENTS -> {
+                    goingAwayUntil = 0L
+                    shownUntil = now + SHOWN_GRACE_MS
+                }
+                // The screen is going off and the keyguard will lock as soon as it is (power button
+                // locks instantly, or no lock delay): count as shown now. On Android 17 the keyguard's
+                // own SHOW comes most of a second later.
+                "onStartedGoingToSleep" -> if (pendingLock(chain.thisObject)) {
                     goingAwayUntil = 0L
                     shownUntil = now + SHOWN_GRACE_MS
                 }
