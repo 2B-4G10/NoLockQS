@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.ScrollView
 import android.widget.Switch
@@ -80,9 +81,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // The window is edge-to-edge: keep the content clear of the system bars and camera cutout.
+        // The top is a margin, not padding, so scrolled content never slides under the status bar;
+        // the bottom stays padding, so it still scrolls behind the navigation bar.
         binding.root.setOnApplyWindowInsetsListener { view, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            (view.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
+                if (params.topMargin != bars.top) {
+                    params.topMargin = bars.top
+                    view.layoutParams = params
+                }
+            }
+            view.setPadding(bars.left, 0, bars.right, bars.bottom)
             insets
         }
 
@@ -363,7 +372,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName.orEmpty()
         val state = Diagnostics.AppState(
             version = versionName,
-            moduleActive = isModuleActive(),
+            moduleActive = isModuleActive() || app.featureSettings != null,
             frameworkConnected = app.featureSettings != null,
             scope = app.scope,
             switches = features.associate { it.key to isOn(it.key) },
