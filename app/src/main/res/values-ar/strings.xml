@@ -85,6 +85,10 @@
     <string name="diagnostics_copied">تم نسخ التقرير.</string>
     <string name="diagnostics_subject">تقرير تشخيص NoLockQS</string>
 
+    <string name="about_header">حول</string>
+    <string name="developer_title">من تطوير فيصل الدوسري</string>
+    <string name="developer_link_description">افتح صفحة المطوّر على GitHub</string>
+
     <string name="support_title">ادعم NoLockQS</string>
     <string name="support_body">إذا كان NoLockQS يجعل هاتفك أكثر أماناً، يمكنك دعم تطويره على Patreon.</string>
     <string name="support_button">ادعم على Patreon</string>
