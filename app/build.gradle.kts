@@ -55,6 +55,11 @@ android {
     buildFeatures {
         viewBinding = true
     }
+    androidResources {
+        // Lists the app's languages (res/resources.properties names the default) so Android's
+        // per-app language setting offers them.
+        generateLocaleConfig = true
+    }
 }
 
 dependencies {

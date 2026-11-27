@@ -1,0 +1,76 @@
+<resources>
+    <string name="module_description">在锁屏上屏蔽快捷设置和电源菜单</string>
+    <string name="tagline">让快捷设置和电源菜单保持锁定。</string>
+    <string name="version_format">版本 %1$s</string>
+
+    <string name="status_active_title">模块已激活</string>
+    <string name="status_active_body">手机锁定时，快捷设置和电源菜单均被屏蔽。</string>
+    <string name="status_active_body_qs">手机锁定时，快捷设置被屏蔽。</string>
+    <string name="status_active_body_power">手机锁定时，电源菜单被屏蔽。</string>
+    <string name="status_off_title">保护已关闭</string>
+    <string name="status_off_body">手机锁定时没有任何内容被屏蔽。点按下方的卡片可重新开启保护。</string>
+    <string name="status_inactive_title">模块未激活</string>
+    <string name="status_inactive_body">请在 Vector 中为“系统界面”和“系统框架”启用 NoLockQS，然后重启。</string>
+    <string name="status_scope_title">作用域不完整</string>
+    <string name="status_scope_body">NoLockQS 尚未在 Vector 中为%1$s启用，部分保护处于关闭状态。点按此处添加，然后重启。</string>
+    <string name="scope_system_ui">系统界面</string>
+    <string name="scope_system_framework">系统框架</string>
+    <string name="scope_separator">"和"</string>
+    <string name="scope_request_sent">请在 Vector 的通知中确认该请求。</string>
+    <string name="scope_request_failed">Vector 未能添加。请改为在 Vector 的模块设置中添加。</string>
+
+    <string name="protection_header">手机锁定时</string>
+    <string name="protection_hint">点按卡片即可开启或关闭。</string>
+    <string name="feature_state_on">开启</string>
+    <string name="feature_state_off">关闭</string>
+    <string name="switches_unavailable">请先在 Vector 中启用 NoLockQS 才能更改此项，然后重新打开应用。</string>
+    <string name="feature_qs_title">快捷设置</string>
+    <string name="feature_qs_body">磁贴会被隐藏，无法下拉打开，应用也无法打开，因此 WLAN、蓝牙和飞行模式等开关都无法被触碰。通知仍可打开和展开。</string>
+    <string name="feature_power_title">电源菜单</string>
+    <string name="feature_power_body">长按电源键无法打开它。需要在 Vector 作用域中勾选“系统框架”。</string>
+
+    <string name="attempts_header">已拦截的尝试</string>
+    <string name="alerts_title">提醒我</string>
+    <string name="alerts_body">每次拦截后发送一条通知。它不会发出声音，也不会显示在锁屏上，解锁后即可看到。</string>
+    <string name="alerts_body_no_permission">提醒已开启，但 NoLockQS 没有发送通知的权限。请在 Android 设置中为 NoLockQS 允许通知。</string>
+    <string name="attempts_empty">暂无已拦截的尝试。每当手机锁定时电源菜单或快捷设置被拒绝打开，都会记录在这里。</string>
+    <plurals name="attempts_summary">
+        <item quantity="other">已拦截 %1$d 次尝试：</item>
+    </plurals>
+    <plurals name="attempts_summary_latest">
+        <item quantity="other">共 %2$d 次已拦截的尝试，显示最近 %1$d 次：</item>
+    </plurals>
+    <string name="attempts_clear">清除记录</string>
+    <string name="attempts_clear_title">要清除记录吗？</string>
+    <plurals name="attempts_clear_message">
+        <item quantity="other">这将删除全部 %1$d 条记录，且无法撤销。</item>
+    </plurals>
+
+    <string name="alerts_channel_name">已拦截的尝试</string>
+    <string name="alerts_channel_description">手机锁定时电源菜单或快捷设置被拒绝打开后发出。</string>
+    <string name="alert_title">已拦截%1$s</string>
+    <string name="alert_text_one">有人在 %1$s 试图打开它，当时手机处于锁定状态。</string>
+    <plurals name="alert_text_many">
+        <item quantity="other">自上次查看以来已拦截 %1$d 次尝试，最近一次在 %2$s。</item>
+    </plurals>
+
+    <string name="diagnostics_header">故障排查</string>
+    <string name="diagnostics_title">诊断报告</string>
+    <string name="diagnostics_body">列出您的设备信息、已挂钩的保护项，以及（获得 Root 权限时）NoLockQS 自身的日志。不包含任何个人信息。报告问题时请分享它。</string>
+    <string name="diagnostics_button">生成报告</string>
+    <string name="diagnostics_working">正在生成…</string>
+    <string name="diagnostics_share">分享</string>
+    <string name="diagnostics_copy">复制</string>
+    <string name="diagnostics_close">关闭</string>
+    <string name="diagnostics_copied">报告已复制。</string>
+    <string name="diagnostics_subject">NoLockQS 诊断报告</string>
+
+    <string name="support_title">支持 NoLockQS</string>
+    <string name="support_body">如果 NoLockQS 让您的手机更安全，欢迎在 Patreon 上支持它的开发。</string>
+    <string name="support_button">在 Patreon 上支持</string>
+    <string name="no_browser">未找到可打开链接的浏览器。</string>
+
+    <string name="compatibility_info">适用于已 Root、Android 15 或更高版本的手机：Pixel，以及系统界面接近原生（AOSP）的 ROM。</string>
+    <string name="privacy_info">不收集任何数据。所有内容（包括拦截记录）都保留在您的设备上。</string>
+    <string name="made_in">沙特制造 🇸🇦</string>
+</resources>

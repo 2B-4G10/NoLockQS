@@ -1,0 +1,96 @@
+<resources>
+    <string name="module_description">يمنع الإعدادات السريعة وقائمة التشغيل على شاشة القفل</string>
+    <string name="tagline">يبقي الإعدادات السريعة وقائمة التشغيل مقفلة.</string>
+    <string name="version_format">الإصدار %1$s</string>
+
+    <string name="status_active_title">الوحدة مفعّلة</string>
+    <string name="status_active_body">الإعدادات السريعة وقائمة التشغيل محظورة كلما كان هاتفك مقفلاً.</string>
+    <string name="status_active_body_qs">الإعدادات السريعة محظورة كلما كان هاتفك مقفلاً.</string>
+    <string name="status_active_body_power">قائمة التشغيل محظورة كلما كان هاتفك مقفلاً.</string>
+    <string name="status_off_title">الحماية متوقفة</string>
+    <string name="status_off_body">لا شيء محظور أثناء قفل هاتفك. اضغط على أحد المربعات أدناه لإعادة تشغيل الحماية.</string>
+    <string name="status_inactive_title">الوحدة غير مفعّلة</string>
+    <string name="status_inactive_body">فعّل NoLockQS في Vector لواجهة النظام وإطار النظام، ثم أعد التشغيل.</string>
+    <string name="status_scope_title">النطاق غير مكتمل</string>
+    <string name="status_scope_body">‏NoLockQS غير مفعّل لـ %1$s في Vector، لذا جزء من الحماية متوقف. اضغط هنا لإضافته، ثم أعد التشغيل.</string>
+    <string name="scope_system_ui">واجهة النظام</string>
+    <string name="scope_system_framework">إطار النظام</string>
+    <string name="scope_separator">" و"</string>
+    <string name="scope_request_sent">أكّد الطلب من إشعار Vector.</string>
+    <string name="scope_request_failed">لم يضفه Vector. أضفه من إعدادات الوحدة في Vector بدلاً من ذلك.</string>
+
+    <string name="protection_header">أثناء قفل هاتفك</string>
+    <string name="protection_hint">اضغط على مربع لتشغيله أو إيقافه.</string>
+    <string name="feature_state_on">مفعّل</string>
+    <string name="feature_state_off">متوقف</string>
+    <string name="switches_unavailable">فعّل NoLockQS في Vector لتغيير هذا، ثم أعد فتح التطبيق.</string>
+    <string name="feature_qs_title">الإعدادات السريعة</string>
+    <string name="feature_qs_body">تُخفى المربعات ولا يمكن سحبها للأسفل أو فتحها من التطبيقات، فتبقى مفاتيح مثل Wi-Fi والبلوتوث ووضع الطيران بعيدة عن المتناول. الإشعارات تبقى قابلة للفتح والتوسيع.</string>
+    <string name="feature_power_title">قائمة التشغيل</string>
+    <string name="feature_power_body">لا يمكن فتحها بالضغط المطوّل على زر التشغيل. تحتاج إلى إطار النظام ضمن نطاق Vector.</string>
+
+    <string name="attempts_header">المحاولات المحظورة</string>
+    <string name="alerts_title">نبّهني</string>
+    <string name="alerts_body">استلم إشعاراً بعد كل محاولة محظورة. الإشعار بلا صوت ولا يظهر على شاشة القفل، فتراه بعد فتح هاتفك.</string>
+    <string name="alerts_body_no_permission">التنبيهات مفعّلة، لكن NoLockQS غير مسموح له بإرسال الإشعارات. اسمح بها من إعدادات أندرويد الخاصة بـ NoLockQS.</string>
+    <string name="attempts_empty">لا توجد محاولات محظورة بعد. كلما رُفضت قائمة التشغيل أو الإعدادات السريعة أثناء قفل هاتفك، ستظهر هنا.</string>
+    <plurals name="attempts_summary">
+        <item quantity="zero">لا توجد محاولات محظورة:</item>
+        <item quantity="one">محاولة محظورة واحدة:</item>
+        <item quantity="two">محاولتان محظورتان:</item>
+        <item quantity="few">%1$d محاولات محظورة:</item>
+        <item quantity="many">%1$d محاولة محظورة:</item>
+        <item quantity="other">%1$d محاولة محظورة:</item>
+    </plurals>
+    <plurals name="attempts_summary_latest">
+        <item quantity="zero">أحدث %1$d من أصل %2$d محاولة محظورة:</item>
+        <item quantity="one">أحدث %1$d من أصل %2$d محاولة محظورة:</item>
+        <item quantity="two">أحدث %1$d من أصل %2$d محاولة محظورة:</item>
+        <item quantity="few">أحدث %1$d من أصل %2$d محاولات محظورة:</item>
+        <item quantity="many">أحدث %1$d من أصل %2$d محاولة محظورة:</item>
+        <item quantity="other">أحدث %1$d من أصل %2$d محاولة محظورة:</item>
+    </plurals>
+    <string name="attempts_clear">مسح السجل</string>
+    <string name="attempts_clear_title">مسح السجل؟</string>
+    <plurals name="attempts_clear_message">
+        <item quantity="zero">لا توجد إدخالات للحذف.</item>
+        <item quantity="one">سيُحذف إدخال واحد. لا يمكن التراجع عن ذلك.</item>
+        <item quantity="two">سيُحذف الإدخالان. لا يمكن التراجع عن ذلك.</item>
+        <item quantity="few">ستُحذف كل الإدخالات الـ %1$d. لا يمكن التراجع عن ذلك.</item>
+        <item quantity="many">ستُحذف كل الإدخالات الـ %1$d. لا يمكن التراجع عن ذلك.</item>
+        <item quantity="other">ستُحذف كل الإدخالات الـ %1$d. لا يمكن التراجع عن ذلك.</item>
+    </plurals>
+
+    <string name="alerts_channel_name">المحاولات المحظورة</string>
+    <string name="alerts_channel_description">بعد رفض قائمة التشغيل أو الإعدادات السريعة أثناء قفل هاتفك.</string>
+    <string name="alert_title">تم حظر %1$s</string>
+    <string name="alert_text_one">حاول أحدهم فتحها الساعة %1$s أثناء قفل هاتفك.</string>
+    <plurals name="alert_text_many">
+        <item quantity="zero">لا محاولات محظورة منذ آخر مرة، آخرها الساعة %2$s.</item>
+        <item quantity="one">محاولة محظورة واحدة منذ آخر مرة تحققت فيها، الساعة %2$s.</item>
+        <item quantity="two">محاولتان محظورتان منذ آخر مرة تحققت فيها، آخرهما الساعة %2$s.</item>
+        <item quantity="few">%1$d محاولات محظورة منذ آخر مرة تحققت فيها، آخرها الساعة %2$s.</item>
+        <item quantity="many">%1$d محاولة محظورة منذ آخر مرة تحققت فيها، آخرها الساعة %2$s.</item>
+        <item quantity="other">%1$d محاولة محظورة منذ آخر مرة تحققت فيها، آخرها الساعة %2$s.</item>
+    </plurals>
+
+    <string name="diagnostics_header">استكشاف الأخطاء</string>
+    <string name="diagnostics_title">تقرير التشخيص</string>
+    <string name="diagnostics_body">يعرض جهازك والحمايات المثبّتة، ومع صلاحيات الروت سجل NoLockQS الخاص. لا يتضمن أي بيانات شخصية. شاركه عند الإبلاغ عن مشكلة.</string>
+    <string name="diagnostics_button">إنشاء التقرير</string>
+    <string name="diagnostics_working">جارٍ الإنشاء…</string>
+    <string name="diagnostics_share">مشاركة</string>
+    <string name="diagnostics_copy">نسخ</string>
+    <string name="diagnostics_close">إغلاق</string>
+    <string name="diagnostics_copied">تم نسخ التقرير.</string>
+    <string name="diagnostics_subject">تقرير تشخيص NoLockQS</string>
+
+    <string name="support_title">ادعم NoLockQS</string>
+    <string name="support_body">إذا كان NoLockQS يجعل هاتفك أكثر أماناً، يمكنك دعم تطويره على Patreon.</string>
+    <string name="support_button">ادعم على Patreon</string>
+    <string name="no_browser">لم يُعثر على متصفح لفتح الرابط.</string>
+
+    <string name="compatibility_info">يعمل على الهواتف المروّتة بأندرويد 15 أو أحدث: هواتف Pixel، والرومات ذات واجهة النظام القريبة من الأصلية (AOSP).</string>
+    <string name="privacy_info">لا تُجمع أي بيانات. كل شيء، بما في ذلك سجل المحاولات، يبقى على جهازك.</string>
+    <string name="made_in">صُنع في السعودية 🇸🇦</string>
+</resources>

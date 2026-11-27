@@ -5,6 +5,25 @@ A section starts with `## v<version>`, then an optional one-line summary as a qu
 these groups: `### ✨ Highlights`, `### 🐞 Fixes`, `### 🔄 Changes`, `### 🧹 Under the hood`.
 A release without a section gets notes made from its commits.
 
+## v2.9 · 2026-11-27
+
+> Know when someone tries your locked phone, troubleshoot in one tap, and use NoLockQS in Arabic or Chinese.
+
+### ✨ Highlights
+
+- **Blocked-attempt alerts.** When the power menu or Quick Settings is refused on a locked phone, NoLockQS tells you once you unlock. The alert makes no sound and never shows on the lock screen, so whoever holds the phone isn't warned. Turn it off any time under **Blocked attempts → Alert me**.
+- **Attempt history.** Every blocked attempt is kept in the app with its time, the newest first, and **Clear history** wipes it. Attempts made before the first unlock after a restart are kept too.
+- **Diagnostics report.** One tap lists your device, which protections are hooked and, with root, NoLockQS's own log, ready to share or copy when you report a problem. Nothing personal is included.
+- **العربية and 简体中文.** The app now speaks Arabic, with a right-to-left layout, and Simplified Chinese. Pick the language in Android's per-app language settings, or let it follow the phone.
+
+### 🔄 Changes
+
+- **Quick Settings is back the moment you unlock.** The module now follows System UI's own lock events instead of checking the lock state every second. The 1-second check stays only as a fallback on builds where those events can't be followed.
+- **Beyond Pixels.** NoLockQS works on ROMs with near-stock (AOSP) System UI as well as on Pixels, and the app and README now say so.
+
+> [!NOTE]
+> Allow notifications for NoLockQS when it asks, so the alerts can reach you.
+
 ## v2.8 · 2026-11-08
 
 > Quick Settings no longer gets stuck hidden on an unlocked phone.

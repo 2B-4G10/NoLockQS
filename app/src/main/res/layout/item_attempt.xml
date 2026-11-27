@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One row of the blocked-attempts history. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:drawablePadding="12dp"
+    android:gravity="center_vertical|start"
+    android:paddingVertical="6dp"
+    android:textAppearance="?attr/textAppearanceBodyMedium"
+    app:drawableTint="?attr/colorPrimary"
+    tools:drawableStart="@drawable/ic_power_menu"
+    tools:text="Power menu · Nov 27, 3:12 AM" />
