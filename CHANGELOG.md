@@ -5,6 +5,28 @@ A section starts with `## v<version>`, then an optional one-line summary as a qu
 these groups: `### ✨ Highlights`, `### 🐞 Fixes`, `### 🔄 Changes`, `### 🧹 Under the hood`.
 A release without a section gets notes made from its commits.
 
+## v2.10 · 2026-11-28
+
+> A brand-new glass look, light or dark your way, and an icon for every kind of attempt.
+
+### ✨ Highlights
+
+- **🫧 Glass design.** Material You is out. Frosted, see-through cards now float over soft violet, teal and pink glows, in light and in dark. Dialogs blur what's behind them, and the logo sits right on the glass.
+- **🌓 Light, dark or same as device.** A new **Appearance** card lets you pick the app's theme. **Same as device** follows your phone as it switches. Your choice applies at once and sticks.
+- **🔢 An icon for every attempt.** Each entry in the history, and its alert, shows what was tried: a wrong PIN, pattern or password, a fingerprint or face that wasn't recognized, Quick Settings or the power menu. Each kind has its own color, so you can tell them apart at a glance.
+
+### 🔄 Changes
+
+- **The Support card is dark in dark mode** (it used to stay light purple on Android 17).
+- **Easier to read.** The Ko-fi button is a deeper blue, screen readers read each history row as one item, and **Clear history**'s confirm button is red, since it can't be undone.
+- **A shorter, livelier README** with new screenshots and ROM logos in the compatibility table.
+
+### 🧹 Under the hood
+
+- Android lint runs on every CI build, and errors fail it
+- Every change is checked for leaked secrets
+- Gradle 9.9.3 and Android Gradle Plugin 9.5.3
+
 ## v2.9 · 2026-11-27
 
 > Know when someone tries your locked phone or its lock, troubleshoot in one tap, and use NoLockQS in Arabic or Chinese.
