@@ -2,7 +2,8 @@ name: No AI traces and secrets
 
 # One quick job on every pull request and every push to main. It fails when
 # - a commit in the change has an AI author or committer, an AI Co-Authored-By trailer, a
-#   Claude-Session trailer, a "Generated with Claude Code" footer or a merge from a claude/ branch;
+#   Claude-Session trailer, a "Generated with Claude Code" footer or a merge message naming a
+#   claude/ branch, or a pull request comes from a claude/ branch;
 # - an AI-agent file is tracked (CLAUDE.md, AGENTS.md, .mcp.json, .cursorrules, .claude/,
 #   .claude-plugin/, .swarm/, .claude-flow/);
 # - a tracked file looks like a secret: a keystore or key file, local.properties, a .env file, a
@@ -35,6 +36,7 @@ jobs:
       PR_HEAD: ${{ github.event.pull_request.head.sha }}
       BEFORE: ${{ github.event.before }}
       PR_BODY: ${{ github.event.pull_request.body }}
+      HEAD_REF: ${{ github.head_ref }}
     steps:
       - name: Fetch the change
         run: |
@@ -62,7 +64,7 @@ jobs:
 
           AI = r"claude|anthropic|copilot|cursor|chatgpt|openai|codex|devin|gemini"
           AI_PEOPLE = re.compile(AI, re.I)
-          AI_LINE = re.compile(r"^\s*(?:co-authored-by:.*(?:%s)|claude-session:|.*generated (?:with|by) \[claude code\]\(|.*claude\.ai/code|merge .*\bfrom \S+/claude/)" % AI, re.I)
+          AI_LINE = re.compile(r"^\s*(?:co-authored-by:.*(?:%s)|claude-session:|.*generated (?:with|by) \[claude code\]\(|.*claude\.ai/code|merge\b.*\bclaude/)" % AI, re.I)
           AI_FILES = re.compile(r"^(CLAUDE\.md|AGENTS\.md|\.mcp\.json|\.cursorrules)$|^\.(claude|claude-plugin|swarm)/|(^|/)\.claude-flow/")
           BAD_NAMES = [
               (re.compile(r"(^|/)[^/]+\.(jks|keystore|p12|pfx)$", re.I), "signing keystore"),
@@ -116,6 +118,8 @@ jobs:
 
           if os.environ.get("EVENT") == "pull_request":
               body = os.environ.get("PR_BODY") or ""
+              if (os.environ.get("HEAD_REF") or "").lower().startswith("claude/"):
+                  errors.append(f"branch {os.environ['HEAD_REF']}: claude/ branch names end up in merge messages; use a neutral name")
               if re.search(r"generated (with|by) \[claude code\]\(|claude\.ai/code|co-authored-by:.*(claude|anthropic)", body, re.I):
                   print("::warning::The pull request description has an AI attribution line; remove it.")
 
